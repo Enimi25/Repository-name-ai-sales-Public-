@@ -1,270 +1,159 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>AI Sales Assistant</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
-  margin:0;
-  font-family: 'Inter', sans-serif;
-  background:#000;
-  color:white;
-  overflow-x:hidden;
+  margin: 0;
+  font-family: Arial;
+  background: radial-gradient(circle at 30% 30%, #6a00ff33, #000 60%);
+  color: white;
 }
 
-/* GLOW BACKGROUND */
-.bg {
-  position:fixed;
-  width:100%;
-  height:100%;
-  background:
-    radial-gradient(circle at 20% 30%, #6d28d9, transparent 40%),
-    radial-gradient(circle at 80% 80%, #9333ea, transparent 40%);
-  filter: blur(120px);
-  z-index:-1;
-}
-
-/* NAV */
+/* NAVBAR */
 nav {
-  display:flex;
-  justify-content:space-between;
-  padding:30px 60px;
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 60px;
+  border-bottom: 1px solid #222;
 }
 
-nav h2 {
-  font-weight:800;
+nav .links span {
+  margin: 0 15px;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+nav .actions button {
+  margin-left: 10px;
 }
 
 /* HERO */
-.hero {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:80px;
+.container {
+  display: flex;
+  justify-content: space-between;
+  padding: 80px;
 }
 
 .left {
-  max-width:600px;
+  max-width: 500px;
 }
 
 h1 {
-  font-size:70px;
-  line-height:1.1;
+  font-size: 60px;
 }
 
 .gradient {
-  background: linear-gradient(90deg,#a855f7,#6366f1);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
-
-p {
-  color:#aaa;
-  font-size:20px;
-}
-
-/* BUTTONS */
-.buttons {
-  margin-top:30px;
+  background: linear-gradient(90deg, #a855f7, #6a00ff);
+  -webkit-background-clip: text;
+  color: transparent;
 }
 
 .btn {
-  padding:16px 30px;
-  border-radius:12px;
-  border:none;
-  margin-right:10px;
-  cursor:pointer;
+  padding: 14px 28px;
+  border-radius: 10px;
+  border: none;
+  margin-top: 20px;
+  cursor: pointer;
 }
 
 .primary {
-  background:linear-gradient(90deg,#a855f7,#6366f1);
+  background: linear-gradient(90deg, #a855f7, #6a00ff);
+  color: white;
 }
 
 .secondary {
-  background:transparent;
-  border:1px solid #333;
-  color:white;
+  background: transparent;
+  border: 1px solid #555;
+  color: white;
 }
 
-/* DASHBOARD CARD */
+/* CARD */
 .card {
-  background: rgba(255,255,255,0.05);
-  padding:30px;
-  border-radius:20px;
-  backdrop-filter: blur(20px);
-  box-shadow:0 0 40px rgba(168,85,247,0.3);
-  width:400px;
-}
-
-/* GRAPH */
-.graph {
-  height:150px;
-  background:linear-gradient(to top, #6d28d9, transparent);
-  border-radius:10px;
-  margin-top:20px;
+  background: #111;
+  padding: 30px;
+  border-radius: 20px;
+  width: 400px;
+  box-shadow: 0 0 60px #6a00ff55;
 }
 
 /* CHAT */
-#chat-button {
-  position:fixed;
-  right:30px;
-  bottom:30px;
-  width:60px;
-  height:60px;
-  border-radius:50%;
-  background:linear-gradient(90deg,#a855f7,#6366f1);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
+.chat {
+  position: fixed;
+  right: 30px;
+  bottom: 30px;
+  width: 300px;
+  background: #111;
+  border-radius: 20px;
+  padding: 15px;
 }
 
-#chat {
-  position:fixed;
-  right:30px;
-  bottom:100px;
-  width:320px;
-  height:440px;
-  background:#111;
-  border-radius:20px;
-  display:none;
-  flex-direction:column;
-}
-
-#messages {
-  flex:1;
-  padding:15px;
-  overflow-y:auto;
-}
-
-.msg {
-  margin-bottom:10px;
-}
-
-.user {
-  text-align:right;
-}
-
-.bot {
-  color:#ccc;
-}
-
-/* ACTION BUTTONS */
-.actions {
-  display:flex;
-  gap:5px;
-  padding:10px;
-}
-
-.actions button {
-  flex:1;
-  padding:8px;
-  background:#222;
-  color:white;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
-}
-
-/* INPUT */
-#input {
-  border:none;
-  padding:12px;
-  background:#222;
-  color:white;
+.chat button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: white;
+  border-radius: 10px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="bg"></div>
-
 <nav>
-  <h2>AI Sales Assistant</h2>
+  <div>🤖 AI Sales Assistant</div>
+  <div class="links">
+    <span>Home</span>
+    <span>Features</span>
+    <span>Pricing</span>
+  </div>
+  <div class="actions">
+    <button class="secondary">Log in</button>
+    <button class="primary">Get Started</button>
+  </div>
 </nav>
 
-<div class="hero">
-
+<div class="container">
   <div class="left">
-    <h1>
-      Close More Deals <br>
-      <span class="gradient">with AI</span>
-    </h1>
+    <h1>Close More Deals <span class="gradient">with AI</span></h1>
+    <p>AI that captures leads, sends payments and books clients automatically.</p>
 
-    <p>
-      AI that captures leads, sends payments and books clients automatically.
-    </p>
-
-    <div class="buttons">
-      <button class="btn primary">Get Started</button>
-      <button class="btn secondary">Watch Demo</button>
-    </div>
+    <button class="btn primary">Get Started Free</button>
+    <button class="btn secondary">Watch Demo</button>
   </div>
 
   <div class="card">
-    <h3>Live Dashboard</h3>
-    <p>Leads: 247</p>
-    <p>Revenue: $12,450</p>
-    <div class="graph"></div>
+    <h3>Live Overview</h3>
+    <canvas id="chart"></canvas>
   </div>
-
 </div>
 
-<!-- CHAT -->
-<div id="chat-button" onclick="toggleChat()">💬</div>
+<div class="chat">
+  <div>Hi! I'm your AI assistant</div>
 
-<div id="chat">
-
-  <div id="messages">
-    <div class="msg bot">Hi! I can help you.</div>
-  </div>
-
-  <div class="actions">
-    <button onclick="sendQuick('Price')">Price</button>
-    <button onclick="sendQuick('Book appointment')">Book appointment</button>
-    <button onclick="sendQuick('Pay now')">Pay now</button>
-  </div>
-
-  <input id="input" placeholder="Type...">
+  <button>Book appointment</button>
+  <button>Get Pricing</button>
+  <button>How it Works</button>
+  <button>Talk to Sales</button>
 </div>
 
 <script>
-const API = "/chat";
-
-function toggleChat() {
-  const chat = document.getElementById("chat");
-  chat.style.display = chat.style.display === "flex" ? "none" : "flex";
-}
-
-function add(text, type) {
-  const div = document.createElement("div");
-  div.className = "msg " + type;
-  div.innerText = text;
-  document.getElementById("messages").appendChild(div);
-}
-
-function sendQuick(text){
-  add(text,"user");
-}
-
-document.getElementById("input").addEventListener("keypress", async (e)=>{
-  if(e.key==="Enter"){
-    const text=e.target.value;
-    add(text,"user");
-    e.target.value="";
-
-    const res=await fetch(API,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message:text})
-    });
-
-    const data=await res.json();
-    add(data.reply,"bot");
+new Chart(document.getElementById("chart"), {
+  type: "line",
+  data: {
+    labels: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+    datasets: [{
+      label: "Leads",
+      data: [50,120,160,180,210,150,240],
+      borderColor: "#a855f7",
+      tension: 0.4
+    }]
   }
 });
 </script>
