@@ -1,19 +1,15 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
+import os
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @app.get("/")
 def home():
-    return FileResponse("index.html")
+    return FileResponse(os.path.join(BASE_DIR, "index.html"))
 
 @app.get("/widget.js")
+def widget():
+    return FileResponse(os.path.join(BASE_DIR, "widget.js"))
