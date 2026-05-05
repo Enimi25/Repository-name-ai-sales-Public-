@@ -10,13 +10,14 @@
 body {
   margin:0;
   font-family: 'Inter', sans-serif;
-  background:#000;
+  background:#030306;
   color:white;
   overflow-x:hidden;
 }
 
-/* GLOW BACKGROUND */
-.bg {
+/* glow */
+body::before {
+  content:"";
   position:fixed;
   width:100%;
   height:100%;
@@ -27,7 +28,7 @@ body {
   z-index:-1;
 }
 
-/* NAV */
+/* nav */
 nav {
   display:flex;
   justify-content:space-between;
@@ -38,12 +39,12 @@ nav h2 {
   font-weight:800;
 }
 
-/* HERO */
+/* hero */
 .hero {
   display:flex;
   justify-content:space-between;
   align-items:center;
-  padding:80px;
+  padding:100px 80px;
 }
 
 .left {
@@ -66,7 +67,7 @@ p {
   font-size:20px;
 }
 
-/* BUTTONS */
+/* buttons */
 .buttons {
   margin-top:30px;
 }
@@ -81,6 +82,7 @@ p {
 
 .primary {
   background:linear-gradient(90deg,#a855f7,#6366f1);
+  color:white;
 }
 
 .secondary {
@@ -89,53 +91,27 @@ p {
   color:white;
 }
 
-/* CARD */
+/* card */
 .card {
   background: rgba(255,255,255,0.05);
   padding:30px;
   border-radius:20px;
   backdrop-filter: blur(20px);
-  box-shadow:0 0 40px rgba(168,85,247,0.3);
+  box-shadow:0 0 40px rgba(168,85,247,0.25);
   width:400px;
 }
 
-/* GRAPH */
+/* graph */
 .graph {
   height:150px;
   border-radius:10px;
   margin-top:20px;
-  position:relative;
-  overflow:hidden;
-}
-
-.graph::after {
-  content:"";
-  position:absolute;
-  width:100%;
-  height:100%;
-  background:linear-gradient(to top, #a855f7, transparent);
-  opacity:0.4;
-}
-
-.line {
-  position:absolute;
-  width:100%;
-  height:100%;
-  background:
-    linear-gradient(120deg, transparent 40%, #a855f7 50%, transparent 60%);
-  animation: move 4s linear infinite;
-}
-
-@keyframes move {
-  0% { transform:translateX(-100%); }
-  100% { transform:translateX(100%); }
+  background:linear-gradient(to top, #6d28d9, transparent);
 }
 </style>
 </head>
 
 <body>
-
-<div class="bg"></div>
 
 <nav>
   <h2>AI Sales Assistant</h2>
@@ -163,11 +139,7 @@ p {
     <h3>Live Dashboard</h3>
     <p>Leads: 247</p>
     <p>Revenue: $12,450</p>
-
-    <div class="graph">
-      <div class="line"></div>
-    </div>
-
+    <div class="graph"></div>
   </div>
 
 </div>
