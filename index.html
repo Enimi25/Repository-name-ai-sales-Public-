@@ -1,29 +1,273 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
 <title>AI Sales Assistant</title>
 
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
 <style>
-* {
-  box-sizing: border-box;
-}
-
 body {
-  margin: 0;
-  font-family: Inter, Arial, sans-serif;
-  background: #050507;
-  color: white;
-  overflow-x: hidden;
+  margin:0;
+  font-family: 'Inter', sans-serif;
+  background:#000;
+  color:white;
+  overflow-x:hidden;
 }
 
+/* GLOW BACKGROUND */
 .bg {
-  position: fixed;
-  inset: 0;
+  position:fixed;
+  width:100%;
+  height:100%;
   background:
-    radial-gradient(circle at 20% 20%, rgba(124,58,237,.45), transparent 28%),
-    radial-gradient(circle at 85% 25%, rgba(99,102,241,.35), transparent 30%),
-    radial-gradient(circle at 50% 90%, rgba(168,85,247,.22), transparent 35%);
-  z-index: -2;
+    radial-gradient(circle at 20% 30%, #6d28d9, transparent 40%),
+    radial-gradient(circle at 80% 80%, #9333ea, transparent 40%);
+  filter: blur(120px);
+  z-index:-1;
 }
+
+/* NAV */
+nav {
+  display:flex;
+  justify-content:space-between;
+  padding:30px 60px;
+}
+
+nav h2 {
+  font-weight:800;
+}
+
+/* HERO */
+.hero {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:80px;
+}
+
+.left {
+  max-width:600px;
+}
+
+h1 {
+  font-size:70px;
+  line-height:1.1;
+}
+
+.gradient {
+  background: linear-gradient(90deg,#a855f7,#6366f1);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+p {
+  color:#aaa;
+  font-size:20px;
+}
+
+/* BUTTONS */
+.buttons {
+  margin-top:30px;
+}
+
+.btn {
+  padding:16px 30px;
+  border-radius:12px;
+  border:none;
+  margin-right:10px;
+  cursor:pointer;
+}
+
+.primary {
+  background:linear-gradient(90deg,#a855f7,#6366f1);
+}
+
+.secondary {
+  background:transparent;
+  border:1px solid #333;
+  color:white;
+}
+
+/* DASHBOARD CARD */
+.card {
+  background: rgba(255,255,255,0.05);
+  padding:30px;
+  border-radius:20px;
+  backdrop-filter: blur(20px);
+  box-shadow:0 0 40px rgba(168,85,247,0.3);
+  width:400px;
+}
+
+/* GRAPH */
+.graph {
+  height:150px;
+  background:linear-gradient(to top, #6d28d9, transparent);
+  border-radius:10px;
+  margin-top:20px;
+}
+
+/* CHAT */
+#chat-button {
+  position:fixed;
+  right:30px;
+  bottom:30px;
+  width:60px;
+  height:60px;
+  border-radius:50%;
+  background:linear-gradient(90deg,#a855f7,#6366f1);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+
+#chat {
+  position:fixed;
+  right:30px;
+  bottom:100px;
+  width:320px;
+  height:440px;
+  background:#111;
+  border-radius:20px;
+  display:none;
+  flex-direction:column;
+}
+
+#messages {
+  flex:1;
+  padding:15px;
+  overflow-y:auto;
+}
+
+.msg {
+  margin-bottom:10px;
+}
+
+.user {
+  text-align:right;
+}
+
+.bot {
+  color:#ccc;
+}
+
+/* ACTION BUTTONS */
+.actions {
+  display:flex;
+  gap:5px;
+  padding:10px;
+}
+
+.actions button {
+  flex:1;
+  padding:8px;
+  background:#222;
+  color:white;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+/* INPUT */
+#input {
+  border:none;
+  padding:12px;
+  background:#222;
+  color:white;
+}
+</style>
+</head>
+
+<body>
+
+<div class="bg"></div>
+
+<nav>
+  <h2>AI Sales Assistant</h2>
+</nav>
+
+<div class="hero">
+
+  <div class="left">
+    <h1>
+      Close More Deals <br>
+      <span class="gradient">with AI</span>
+    </h1>
+
+    <p>
+      AI that captures leads, sends payments and books clients automatically.
+    </p>
+
+    <div class="buttons">
+      <button class="btn primary">Get Started</button>
+      <button class="btn secondary">Watch Demo</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Live Dashboard</h3>
+    <p>Leads: 247</p>
+    <p>Revenue: $12,450</p>
+    <div class="graph"></div>
+  </div>
+
+</div>
+
+<!-- CHAT -->
+<div id="chat-button" onclick="toggleChat()">💬</div>
+
+<div id="chat">
+
+  <div id="messages">
+    <div class="msg bot">Hi! I can help you.</div>
+  </div>
+
+  <div class="actions">
+    <button onclick="sendQuick('Price')">Price</button>
+    <button onclick="sendQuick('Book appointment')">Book appointment</button>
+    <button onclick="sendQuick('Pay now')">Pay now</button>
+  </div>
+
+  <input id="input" placeholder="Type...">
+</div>
+
+<script>
+const API = "/chat";
+
+function toggleChat() {
+  const chat = document.getElementById("chat");
+  chat.style.display = chat.style.display === "flex" ? "none" : "flex";
+}
+
+function add(text, type) {
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.innerText = text;
+  document.getElementById("messages").appendChild(div);
+}
+
+function sendQuick(text){
+  add(text,"user");
+}
+
+document.getElementById("input").addEventListener("keypress", async (e)=>{
+  if(e.key==="Enter"){
+    const text=e.target.value;
+    add(text,"user");
+    e.target.value="";
+
+    const res=await fetch(API,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:text})
+    });
+
+    const data=await res.json();
+    add(data.reply,"bot");
+  }
+});
+</script>
+
+</body>
+</html>
