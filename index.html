@@ -1,187 +1,134 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Sales Assistant</title>
+<title>AI Sales</title>
 
 <style>
 body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #0a0a0a;
-  color: white;
+    margin: 0;
+    font-family: Inter, Arial;
+    background: radial-gradient(circle at top, #1a1a1a, #000);
+    color: white;
 }
 
 .container {
-  max-width: 1200px;
-  margin: auto;
-  padding: 60px 20px;
+    display: flex;
+    justify-content: space-between;
+    padding: 100px;
 }
 
-.hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.left {
+    max-width: 600px;
 }
 
 h1 {
-  font-size: 56px;
-  margin: 0;
+    font-size: 64px;
+    line-height: 1.1;
 }
 
 .gradient {
-  color: #8b5cf6;
+    background: linear-gradient(90deg, #a855f7, #6366f1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 p {
-  color: #aaa;
-  font-size: 18px;
+    color: #aaa;
+    font-size: 18px;
 }
 
 .buttons {
-  margin-top: 20px;
+    margin-top: 30px;
 }
 
 .btn {
-  padding: 14px 24px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  margin-right: 10px;
+    padding: 14px 28px;
+    border-radius: 10px;
+    border: none;
+    margin-right: 10px;
+    cursor: pointer;
 }
 
-.btn-primary {
-  background: linear-gradient(90deg, #7c3aed, #9333ea);
-  color: white;
+.primary {
+    background: linear-gradient(90deg, #a855f7, #6366f1);
+    color: white;
 }
 
-.btn-secondary {
-  background: transparent;
-  border: 1px solid #444;
-  color: white;
+.secondary {
+    background: transparent;
+    border: 1px solid #444;
+    color: white;
 }
 
 .card {
-  background: #111;
-  padding: 20px;
-  border-radius: 12px;
-  width: 350px;
+    background: rgba(255,255,255,0.05);
+    padding: 30px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
 }
 
-.chat {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
+/* CHAT */
+#chat {
+    position: fixed;
+    right: 30px;
+    bottom: 30px;
+    width: 320px;
+    height: 420px;
+    background: #111;
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
 }
 
-.chat-btn {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: #8b5cf6;
-  border: none;
-  font-size: 24px;
-  color: white;
-  cursor: pointer;
+#messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
 }
 
-.chat-box {
-  display: none;
-  width: 320px;
-  height: 400px;
-  background: #111;
-  border-radius: 12px;
-  margin-bottom: 10px;
-  padding: 10px;
-}
-
-.chat-box.active {
-  display: block;
-}
-
-input {
-  width: 70%;
-  padding: 10px;
-  background: #000;
-  border: 1px solid #333;
-  color: white;
-}
-
-button.send {
-  padding: 10px;
-  background: #8b5cf6;
-  border: none;
-  color: white;
+#input {
+    border: none;
+    padding: 10px;
+    background: #222;
+    color: white;
 }
 </style>
+
 </head>
 
 <body>
 
 <div class="container">
 
-<div class="hero">
-<div>
-<h1>Close More Deals <br><span class="gradient">with AI</span></h1>
-<p>AI that captures leads, sends payment links and books clients automatically.</p>
+    <div class="left">
+        <h1>
+            Close More Deals <br>
+            <span class="gradient">with AI</span>
+        </h1>
 
-<div class="buttons">
-<button class="btn btn-primary">Get Started</button>
-<button class="btn btn-secondary">Watch Demo</button>
-</div>
-</div>
+        <p>
+            AI that captures leads, sends payment links and books clients automatically.
+        </p>
 
-<div class="card">
-<h3>Live Stats</h3>
-<p>Leads: 247</p>
-<p>Revenue: $12,450</p>
-</div>
-</div>
+        <div class="buttons">
+            <button class="btn primary">Get Started</button>
+            <button class="btn secondary">Watch Demo</button>
+        </div>
+    </div>
 
-</div>
+    <div class="card">
+        <h3>Live Stats</h3>
+        <p>Leads: 247</p>
+        <p>Revenue: $12,450</p>
+    </div>
 
-<div class="chat">
-<div class="chat-box" id="chatBox">
-<div id="messages"></div>
-
-<input id="input" placeholder="Type..." />
-<button class="send" onclick="send()">Send</button>
 </div>
 
-<button class="chat-btn" onclick="toggle()">💬</button>
+<div id="chat">
+    <div id="messages">Hi! I can help you buy or book.</div>
+    <input id="input" placeholder="Type...">
 </div>
-
-<script>
-const API = "/chat";
-
-function toggle() {
-  document.getElementById("chatBox").classList.toggle("active");
-}
-
-function add(text, me) {
-  const div = document.createElement("div");
-  div.innerText = (me ? "You: " : "AI: ") + text;
-  document.getElementById("messages").appendChild(div);
-}
-
-async function send() {
-  const input = document.getElementById("input");
-  const text = input.value;
-
-  add(text, true);
-  input.value = "";
-
-  const res = await fetch(API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: text })
-  });
-
-  const data = await res.json();
-  add(data.reply, false);
-}
-</script>
 
 </body>
 </html>
