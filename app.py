@@ -17,8 +17,3 @@ def home():
     return FileResponse("index.html")
 
 @app.get("/widget.js")
-def widget():
-    return FileResponse("widget.js", media_type="application/javascript")
-
-@app.post("/chat")
-async def chat(request:
