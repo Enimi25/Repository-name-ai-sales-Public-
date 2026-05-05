@@ -1,9 +1,7 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse
 
 app = FastAPI()
-
-from fastapi.responses import FileResponse
 
 @app.get("/")
 def home():
