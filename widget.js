@@ -1,121 +1,95 @@
 (function () {
-  const widget = document.createElement("div");
 
-  widget.innerHTML = `
-  <div style="
-    position:fixed;
-    bottom:20px;
-    right:20px;
-    width:320px;
-    background:#fff;
-    border-radius:20px;
-    overflow:hidden;
-    box-shadow:0 20px 60px rgba(0,0,0,0.4);
-    font-family:sans-serif;
-    z-index:9999;
-  ">
-    <div style="background:#111;color:#fff;padding:12px">
-      <b>AI Sales Assistant</b><br>
-      <span style="font-size:12px;color:#7cffbd">Online now</span>
-    </div>
+  const API = "/chat";
 
-    <div id="chat" style="padding:12px;height:260px;overflow:auto;background:#f5f5f7"></div>
+  // === КНОПКА (кружок) ===
+  const button = document.createElement("div");
+  button.innerHTML = "💬";
+  button.style.position = "fixed";
+  button.style.bottom = "20px";
+  button.style.right = "20px";
+  button.style.width = "60px";
+  button.style.height = "60px";
+  button.style.borderRadius = "50%";
+  button.style.background = "linear-gradient(135deg,#6d28d9,#9333ea)";
+  button.style.display = "flex";
+  button.style.alignItems = "center";
+  button.style.justifyContent = "center";
+  button.style.cursor = "pointer";
+  button.style.fontSize = "24px";
+  button.style.zIndex = "9999";
+  document.body.appendChild(button);
 
-    <div style="padding:10px;border-top:1px solid #eee">
-      <input id="input" placeholder="Type..."
-        style="width:68%;padding:8px;border-radius:8px;border:1px solid #ccc" />
-      <button id="send"
-        style="padding:8px 12px;background:#111;color:#fff;border:none;border-radius:8px">
-        Send
-      </button>
-    </div>
+  // === ЧАТ ===
+  const chat = document.createElement("div");
+  chat.style.position = "fixed";
+  chat.style.bottom = "90px";
+  chat.style.right = "20px";
+  chat.style.width = "320px";
+  chat.style.height = "420px";
+  chat.style.background = "#111";
+  chat.style.borderRadius = "16px";
+  chat.style.display = "none";
+  chat.style.flexDirection = "column";
+  chat.style.zIndex = "9999";
+  chat.style.boxShadow = "0 10px 40px rgba(0,0,0,0.5)";
+  document.body.appendChild(chat);
 
-    <div style="display:flex;gap:6px;padding:10px">
-      <button class="quick" data-type="price">Price</button>
-      <button class="quick" data-type="book">Book appointment</button>
-      <button class="quick" data-type="pay">Pay now</button>
-    </div>
-  </div>
-  `;
+  // === HEADER ===
+  const header = document.createElement("div");
+  header.innerHTML = "AI Assistant";
+  header.style.padding = "12px";
+  header.style.color = "white";
+  header.style.borderBottom = "1px solid #222";
+  chat.appendChild(header);
 
-  document.body.appendChild(widget);
-
-  const chat = widget.querySelector("#chat");
-  const input = widget.querySelector("#input");
-  const send = widget.querySelector("#send");
+  // === MESSAGES ===
+  const messages = document.createElement("div");
+  messages.style.flex = "1";
+  messages.style.padding = "10px";
+  messages.style.overflowY = "auto";
+  chat.appendChild(messages);
 
   function add(text, type) {
-    const div = document.createElement("div");
-
-    div.style.padding = "10px";
-    div.style.marginBottom = "10px";
-    div.style.borderRadius = "12px";
-    div.style.maxWidth = "80%";
-    div.style.fontSize = "14px";
-
-    if (type === "user") {
-      div.style.background = "#111";
-      div.style.color = "#fff";
-      div.style.marginLeft = "auto";
-    } else {
-      div.style.background = "#fff";
-    }
-
-    div.innerText = text;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+    const msg = document.createElement("div");
+    msg.innerText = text;
+    msg.style.margin = "6px 0";
+    msg.style.color = type === "user" ? "white" : "#aaa";
+    msg.style.textAlign = type === "user" ? "right" : "left";
+    messages.appendChild(msg);
+    messages.scrollTop = messages.scrollHeight;
   }
 
-  async function sendMessage(text) {
-    add(text, "user");
+  // === INPUT ===
+  const input = document.createElement("input");
+  input.placeholder = "Type...";
+  input.style.border = "none";
+  input.style.padding = "10px";
+  input.style.background = "#222";
+  input.style.color = "white";
+  input.style.outline = "none";
+  chat.appendChild(input);
 
-    try {
-      const res = await fetch("/chat", {
+  input.addEventListener("keypress", async (e) => {
+    if (e.key === "Enter") {
+      const text = input.value;
+      add(text, "user");
+      input.value = "";
+
+      const res = await fetch(API, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text })
       });
 
       const data = await res.json();
-
       add(data.reply, "bot");
-    } catch (e) {
-      add("Server error. Try again.", "bot");
     }
-  }
+  });
 
-  send.onclick = () => {
-    if (!input.value) return;
-    sendMessage(input.value);
-    input.value = "";
+  // === OPEN / CLOSE ===
+  button.onclick = () => {
+    chat.style.display = chat.style.display === "flex" ? "none" : "flex";
   };
 
-  input.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      send.click();
-    }
-  });
-
-  widget.querySelectorAll(".quick").forEach(btn => {
-    btn.onclick = () => {
-      const type = btn.getAttribute("data-type");
-
-      if (type === "price") {
-        sendMessage("What is your pricing?");
-      }
-
-      if (type === "book") {
-        sendMessage("I want to book an appointment");
-      }
-
-      if (type === "pay") {
-        sendMessage("I want to pay now");
-      }
-    };
-  });
-
-  // стартовое сообщение
-  add("Hi! I can help you with pricing, booking or payment.", "bot");
 })();
