@@ -1,50 +1,94 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, Response, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import os
-import requests
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-
-@app.get("/")
-def root():
-    return {"status": "ok", "demo": "/demo"}
-
-
-@app.get("/demo", response_class=HTMLResponse)
-def demo():
+@app.get("/", response_class=HTMLResponse)
+def home():
     return """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>AI Sales Assistant</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>AI Sales</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: Arial;
+                background: #0f0f0f;
+                color: white;
+            }
 
-<style>
-*{box-sizing:border-box}
-body{
-  margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  background:#050507;
-  color:white;
-  overflow-x:hidden;
-}
-body:before{
-  content:"";
-  position:fixed;
-  inset:0;
-  background:
-    radial-gradient(circle at 75% 30%,rgba(124,58,237,.45),transparent 30%),
-    radial-gradient(circle at 20% 80%,
+            .container {
+                max-width: 900px;
+                margin: 100px auto;
+                text-align: center;
+            }
+
+            h1 {
+                font-size: 48px;
+                background: linear-gradient(90deg, #a855f7, #6366f1);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+
+            p {
+                color: #aaa;
+                font-size: 18px;
+            }
+
+            .btn {
+                margin-top: 30px;
+                padding: 15px 30px;
+                background: linear-gradient(90deg, #a855f7, #6366f1);
+                border: none;
+                border-radius: 10px;
+                color: white;
+                font-size: 16px;
+                cursor: pointer;
+            }
+
+            #chat {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                width: 300px;
+                height: 400px;
+                background: #1a1a1a;
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                display: flex;
+                flex-direction: column;
+            }
+
+            #messages {
+                flex: 1;
+                padding: 10px;
+                overflow-y: auto;
+            }
+
+            input {
+                border: none;
+                padding: 10px;
+                width: 100%;
+                box-sizing: border-box;
+                background: #111;
+                color: white;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div class="container">
+            <h1>Close More Deals</h1>
+            <p>AI that talks to your clients and converts them</p>
+            <button class="btn">Start Now</button>
+        </div>
+
+        <div id="chat">
+            <div id="messages">Hi! I can help you buy or book.</div>
+            <input placeholder="Type..." />
+        </div>
+
+    </body>
+    </html>
+    """
