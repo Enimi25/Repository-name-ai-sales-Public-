@@ -1,53 +1,60 @@
 (function () {
   const API = "/chat";
 
-  // === BUTTON (кружок) ===
+  // === BUTTON ===
   const button = document.createElement("div");
   button.style.position = "fixed";
-  button.style.right = "20px";
-  button.style.bottom = "20px";
-  button.style.width = "60px";
-  button.style.height = "60px";
+  button.style.right = "24px";
+  button.style.bottom = "24px";
+  button.style.width = "64px";
+  button.style.height = "64px";
   button.style.borderRadius = "50%";
   button.style.background = "linear-gradient(135deg,#7c3aed,#4f46e5)";
   button.style.display = "flex";
   button.style.alignItems = "center";
   button.style.justifyContent = "center";
   button.style.color = "white";
-  button.style.fontSize = "24px";
+  button.style.fontSize = "26px";
   button.style.cursor = "pointer";
   button.style.zIndex = "9999";
+  button.style.boxShadow = "0 10px 40px rgba(124,58,237,0.6)";
   button.innerHTML = "💬";
 
   // === CHAT WINDOW ===
   const chat = document.createElement("div");
   chat.style.position = "fixed";
-  chat.style.right = "20px";
-  chat.style.bottom = "90px";
-  chat.style.width = "320px";
-  chat.style.height = "420px";
-  chat.style.background = "#111";
-  chat.style.borderRadius = "16px";
+  chat.style.right = "24px";
+  chat.style.bottom = "100px";
+  chat.style.width = "360px";
+  chat.style.height = "520px";
+  chat.style.background = "#0b0b0f";
+  chat.style.borderRadius = "24px";
   chat.style.display = "none";
   chat.style.flexDirection = "column";
   chat.style.overflow = "hidden";
   chat.style.zIndex = "9999";
+  chat.style.border = "1px solid rgba(255,255,255,0.08)";
+  chat.style.boxShadow = "0 40px 120px rgba(0,0,0,0.8)";
 
   chat.innerHTML = `
-    <div style="padding:12px;background:#000;color:#fff;font-weight:bold;">
-      AI Sales Assistant
+    <div style="padding:18px;background:#0b0b0f;border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div style="font-weight:700;color:#fff;">AI Sales Assistant</div>
+      <div style="font-size:12px;color:#7cffbd;">Online now</div>
     </div>
 
-    <div id="w-messages" style="flex:1;padding:10px;overflow-y:auto;background:#1a1a1a;"></div>
+    <div id="w-messages" style="flex:1;padding:14px;overflow-y:auto;"></div>
 
-    <div style="display:flex;gap:5px;padding:8px;background:#111;">
+    <div style="display:flex;gap:6px;padding:12px;border-top:1px solid rgba(255,255,255,0.06);">
       <button class="w-btn">Price</button>
       <button class="w-btn">Book</button>
       <button class="w-btn">Pay</button>
     </div>
 
-    <input id="w-input" placeholder="Type..."
-      style="border:none;padding:10px;background:#222;color:#fff;">
+    <div style="display:flex;border-top:1px solid rgba(255,255,255,0.06);">
+      <input id="w-input" placeholder="Type..."
+        style="flex:1;border:none;padding:14px;background:#111;color:#fff;outline:none;">
+      <button id="sendBtn" style="padding:14px 16px;background:#7c3aed;border:none;color:#fff;cursor:pointer;">→</button>
+    </div>
   `;
 
   document.body.appendChild(button);
@@ -62,18 +69,20 @@
 
   function add(text, type) {
     const div = document.createElement("div");
-    div.style.margin = "6px 0";
-    div.style.padding = "8px 10px";
-    div.style.borderRadius = "10px";
+    div.style.margin = "10px 0";
+    div.style.padding = "12px 14px";
+    div.style.borderRadius = "14px";
     div.style.maxWidth = "80%";
+    div.style.fontSize = "14px";
+    div.style.lineHeight = "1.4";
 
     if (type === "user") {
-      div.style.background = "#4f46e5";
+      div.style.background = "linear-gradient(135deg,#7c3aed,#4f46e5)";
       div.style.marginLeft = "auto";
       div.style.color = "#fff";
     } else {
-      div.style.background = "#333";
-      div.style.color = "#ddd";
+      div.style.background = "#16161f";
+      div.style.color = "#cfcfe3";
     }
 
     div.innerText = text;
@@ -84,43 +93,50 @@
   // === QUICK BUTTONS ===
   chat.querySelectorAll(".w-btn").forEach(btn => {
     btn.style.flex = "1";
-    btn.style.padding = "6px";
-    btn.style.background = "#222";
+    btn.style.padding = "8px";
+    btn.style.background = "#111";
     btn.style.color = "#fff";
-    btn.style.border = "none";
-    btn.style.borderRadius = "6px";
+    btn.style.border = "1px solid rgba(255,255,255,0.1)";
+    btn.style.borderRadius = "999px";
     btn.style.cursor = "pointer";
+    btn.style.fontSize = "12px";
 
-    btn.onclick = () => {
-      send(btn.innerText);
-    };
+    btn.onclick = () => send(btn.innerText);
   });
 
-  // === SEND ===
   async function send(text) {
     add(text, "user");
 
     try {
       const res = await fetch(API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ message: text })
       });
 
       const data = await res.json();
       add(data.reply, "bot");
-    } catch (e) {
-      add("Error connecting to server", "bot");
+    } catch {
+      add("Server error", "bot");
     }
   }
 
   // === INPUT ===
-  chat.querySelector("#w-input").addEventListener("keypress", (e) => {
+  const input = chat.querySelector("#w-input");
+  const sendBtn = chat.querySelector("#sendBtn");
+
+  input.addEventListener("keypress", e => {
     if (e.key === "Enter") {
-      const text = e.target.value;
-      e.target.value = "";
+      const text = input.value;
+      input.value = "";
       send(text);
     }
   });
+
+  sendBtn.onclick = () => {
+    const text = input.value;
+    input.value = "";
+    send(text);
+  };
 
 })();
