@@ -12,6 +12,7 @@
     overflow:hidden;
     box-shadow:0 20px 60px rgba(0,0,0,0.4);
     font-family:sans-serif;
+    z-index:9999;
   ">
     <div style="background:#111;color:#fff;padding:12px">
       <b>AI Sales Assistant</b><br>
@@ -22,16 +23,17 @@
 
     <div style="padding:10px;border-top:1px solid #eee">
       <input id="input" placeholder="Type..."
-        style="width:70%;padding:8px;border-radius:8px;border:1px solid #ccc" />
-      <button id="send" style="padding:8px 12px;background:#111;color:#fff;border:none;border-radius:8px">
+        style="width:68%;padding:8px;border-radius:8px;border:1px solid #ccc" />
+      <button id="send"
+        style="padding:8px 12px;background:#111;color:#fff;border:none;border-radius:8px">
         Send
       </button>
     </div>
 
     <div style="display:flex;gap:6px;padding:10px">
-      <button class="quick" data="price">Price</button>
-      <button class="quick" data="book">Book</button>
-      <button class="quick" data="pay">Pay</button>
+      <button class="quick" data-type="price">Price</button>
+      <button class="quick" data-type="book">Book appointment</button>
+      <button class="quick" data-type="pay">Pay now</button>
     </div>
   </div>
   `;
@@ -44,10 +46,12 @@
 
   function add(text, type) {
     const div = document.createElement("div");
-    div.style.padding = "8px";
-    div.style.marginBottom = "8px";
-    div.style.borderRadius = "10px";
+
+    div.style.padding = "10px";
+    div.style.marginBottom = "10px";
+    div.style.borderRadius = "12px";
     div.style.maxWidth = "80%";
+    div.style.fontSize = "14px";
 
     if (type === "user") {
       div.style.background = "#111";
@@ -65,14 +69,21 @@
   async function sendMessage(text) {
     add(text, "user");
 
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text })
-    });
+    try {
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message: text })
+      });
 
-    const data = await res.json();
-    add(data.reply, "bot");
+      const data = await res.json();
+
+      add(data.reply, "bot");
+    } catch (e) {
+      add("Server error. Try again.", "bot");
+    }
   }
 
   send.onclick = () => {
@@ -81,9 +92,30 @@
     input.value = "";
   };
 
-  widget.querySelectorAll(".quick").forEach(btn => {
-    btn.onclick = () => sendMessage(btn.getAttribute("data"));
+  input.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      send.click();
+    }
   });
 
+  widget.querySelectorAll(".quick").forEach(btn => {
+    btn.onclick = () => {
+      const type = btn.getAttribute("data-type");
+
+      if (type === "price") {
+        sendMessage("What is your pricing?");
+      }
+
+      if (type === "book") {
+        sendMessage("I want to book an appointment");
+      }
+
+      if (type === "pay") {
+        sendMessage("I want to pay now");
+      }
+    };
+  });
+
+  // стартовое сообщение
   add("Hi! I can help you with pricing, booking or payment.", "bot");
 })();
