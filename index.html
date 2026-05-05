@@ -3,103 +3,161 @@
 <head>
 <meta charset="UTF-8">
 <title>AI Sales Assistant</title>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
-  margin: 0;
-  font-family: Arial;
-  background: radial-gradient(circle at 30% 30%, #6a00ff33, #000 60%);
-  color: white;
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: Inter, Arial;
+  background:#030306;
+  color:white;
+  overflow-x:hidden;
+}
+
+/* GLOW BACKGROUND */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  background:
+    radial-gradient(circle at 75% 30%, rgba(124,58,237,.6), transparent 25%),
+    radial-gradient(circle at 20% 80%, rgba(88,28,135,.25), transparent 35%);
+  filter:blur(40px);
+  z-index:-1;
 }
 
 /* NAVBAR */
-nav {
-  display: flex;
-  justify-content: space-between;
-  padding: 20px 60px;
-  border-bottom: 1px solid #222;
+nav{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:20px 60px;
+  border-bottom:1px solid #111;
 }
-
-nav .links span {
-  margin: 0 15px;
-  opacity: 0.7;
-  cursor: pointer;
+nav .links span{
+  margin:0 15px;
+  opacity:.7;
+  cursor:pointer;
 }
-
-nav .actions button {
-  margin-left: 10px;
+nav .links span:first-child{
+  color:#a855f7;
+}
+nav button{
+  padding:10px 18px;
+  border-radius:8px;
+  border:none;
+  margin-left:10px;
+  cursor:pointer;
+}
+.login{
+  background:#111;
+  color:white;
+}
+.get{
+  background:linear-gradient(90deg,#a855f7,#6366f1);
 }
 
 /* HERO */
-.container {
-  display: flex;
-  justify-content: space-between;
-  padding: 80px;
+.hero{
+  display:flex;
+  justify-content:space-between;
+  padding:80px;
 }
 
-.left {
-  max-width: 500px;
+.left{
+  max-width:550px;
 }
 
-h1 {
-  font-size: 60px;
+h1{
+  font-size:70px;
+  line-height:1.1;
+  margin:0;
 }
 
-.gradient {
-  background: linear-gradient(90deg, #a855f7, #6a00ff);
-  -webkit-background-clip: text;
-  color: transparent;
+.gradient{
+  background:linear-gradient(90deg,#a855f7,#6366f1);
+  -webkit-background-clip:text;
+  color:transparent;
 }
 
-.btn {
-  padding: 14px 28px;
-  border-radius: 10px;
-  border: none;
-  margin-top: 20px;
-  cursor: pointer;
+p{
+  color:#aaa;
+  font-size:18px;
+  margin-top:20px;
 }
 
-.primary {
-  background: linear-gradient(90deg, #a855f7, #6a00ff);
-  color: white;
+/* BUTTONS */
+.btn{
+  padding:14px 28px;
+  border-radius:10px;
+  border:none;
+  margin-top:25px;
+  cursor:pointer;
+}
+.primary{
+  background:linear-gradient(90deg,#a855f7,#6366f1);
+}
+.secondary{
+  background:transparent;
+  border:1px solid #444;
+  color:white;
 }
 
-.secondary {
-  background: transparent;
-  border: 1px solid #555;
-  color: white;
+/* DASHBOARD */
+.dashboard{
+  width:460px;
+  background:#0d0f18;
+  padding:20px;
+  border-radius:20px;
+  box-shadow:0 0 60px #6a00ff55;
 }
 
-/* CARD */
-.card {
-  background: #111;
-  padding: 30px;
-  border-radius: 20px;
-  width: 400px;
-  box-shadow: 0 0 60px #6a00ff55;
+.stats{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.stat{
+  background:#111;
+  padding:15px;
+  border-radius:10px;
+  font-size:14px;
+}
+
+/* FEATURES */
+.features{
+  display:flex;
+  justify-content:center;
+  gap:20px;
+  margin-top:60px;
+}
+.feature{
+  background:#111;
+  padding:20px;
+  border-radius:10px;
 }
 
 /* CHAT */
-.chat {
-  position: fixed;
-  right: 30px;
-  bottom: 30px;
-  width: 300px;
-  background: #111;
-  border-radius: 20px;
-  padding: 15px;
+.chat{
+  position:fixed;
+  right:30px;
+  bottom:30px;
+  width:300px;
+  background:#111;
+  border-radius:20px;
+  padding:15px;
 }
-
-.chat button {
-  width: 100%;
-  margin-top: 8px;
-  padding: 10px;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: white;
-  border-radius: 10px;
+.chat button{
+  width:100%;
+  margin-top:8px;
+  padding:10px;
+  background:#1a1a1a;
+  border:1px solid #333;
+  color:white;
+  border-radius:10px;
+  cursor:pointer;
 }
 </style>
 </head>
@@ -108,39 +166,65 @@ h1 {
 
 <nav>
   <div>🤖 AI Sales Assistant</div>
+
   <div class="links">
     <span>Home</span>
     <span>Features</span>
     <span>Pricing</span>
+    <span>Demo</span>
   </div>
-  <div class="actions">
-    <button class="secondary">Log in</button>
-    <button class="primary">Get Started</button>
+
+  <div>
+    <button class="login">Log in</button>
+    <button class="get">Get Started</button>
   </div>
 </nav>
 
-<div class="container">
+<div class="hero">
+
   <div class="left">
-    <h1>Close More Deals <span class="gradient">with AI</span></h1>
-    <p>AI that captures leads, sends payments and books clients automatically.</p>
+    <h1>
+      Close More Deals <br>
+      <span class="gradient">with AI</span>
+    </h1>
+
+    <p>
+      AI that captures leads, sends payments and books clients automatically.
+    </p>
 
     <button class="btn primary">Get Started Free</button>
     <button class="btn secondary">Watch Demo</button>
   </div>
 
-  <div class="card">
+  <div class="dashboard">
     <h3>Live Overview</h3>
+
+    <div class="stats">
+      <div class="stat">Leads: 247</div>
+      <div class="stat">Deals: 39</div>
+      <div class="stat">Revenue: $12,450</div>
+      <div class="stat">Conversion: 15%</div>
+    </div>
+
     <canvas id="chart"></canvas>
   </div>
+
+</div>
+
+<div class="features">
+  <div class="feature">AI Lead Capture</div>
+  <div class="feature">Smart Qualification</div>
+  <div class="feature">Payments</div>
+  <div class="feature">Analytics</div>
 </div>
 
 <div class="chat">
   <div>Hi! I'm your AI assistant</div>
 
   <button>Book appointment</button>
-  <button>Get Pricing</button>
-  <button>How it Works</button>
-  <button>Talk to Sales</button>
+  <button>Price list</button>
+  <button>How it works</button>
+  <button>Talk to sales</button>
 </div>
 
 <script>
@@ -149,7 +233,6 @@ new Chart(document.getElementById("chart"), {
   data: {
     labels: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
     datasets: [{
-      label: "Leads",
       data: [50,120,160,180,210,150,240],
       borderColor: "#a855f7",
       tension: 0.4
