@@ -3,8 +3,11 @@ from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
-@app.get("/", response_class=HTMLResponse)
+from fastapi.responses import FileResponse
+
+@app.get("/")
 def home():
+    return FileResponse("index.html")
     return """
     <!DOCTYPE html>
     <html>
