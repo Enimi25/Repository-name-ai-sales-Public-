@@ -1,81 +1,106 @@
 (function () {
-
   const API = "/chat";
 
-  // === КНОПКА (кружок) ===
+  // === BUTTON (кружок) ===
   const button = document.createElement("div");
-  button.innerHTML = "💬";
   button.style.position = "fixed";
-  button.style.bottom = "20px";
   button.style.right = "20px";
+  button.style.bottom = "20px";
   button.style.width = "60px";
   button.style.height = "60px";
   button.style.borderRadius = "50%";
-  button.style.background = "linear-gradient(135deg,#6d28d9,#9333ea)";
+  button.style.background = "linear-gradient(135deg,#7c3aed,#4f46e5)";
   button.style.display = "flex";
   button.style.alignItems = "center";
   button.style.justifyContent = "center";
-  button.style.cursor = "pointer";
+  button.style.color = "white";
   button.style.fontSize = "24px";
+  button.style.cursor = "pointer";
   button.style.zIndex = "9999";
-  document.body.appendChild(button);
+  button.innerHTML = "💬";
 
-  // === ЧАТ ===
+  // === CHAT WINDOW ===
   const chat = document.createElement("div");
   chat.style.position = "fixed";
-  chat.style.bottom = "90px";
   chat.style.right = "20px";
+  chat.style.bottom = "90px";
   chat.style.width = "320px";
   chat.style.height = "420px";
   chat.style.background = "#111";
   chat.style.borderRadius = "16px";
   chat.style.display = "none";
   chat.style.flexDirection = "column";
+  chat.style.overflow = "hidden";
   chat.style.zIndex = "9999";
-  chat.style.boxShadow = "0 10px 40px rgba(0,0,0,0.5)";
+
+  chat.innerHTML = `
+    <div style="padding:12px;background:#000;color:#fff;font-weight:bold;">
+      AI Sales Assistant
+    </div>
+
+    <div id="w-messages" style="flex:1;padding:10px;overflow-y:auto;background:#1a1a1a;"></div>
+
+    <div style="display:flex;gap:5px;padding:8px;background:#111;">
+      <button class="w-btn">Price</button>
+      <button class="w-btn">Book</button>
+      <button class="w-btn">Pay</button>
+    </div>
+
+    <input id="w-input" placeholder="Type..."
+      style="border:none;padding:10px;background:#222;color:#fff;">
+  `;
+
+  document.body.appendChild(button);
   document.body.appendChild(chat);
 
-  // === HEADER ===
-  const header = document.createElement("div");
-  header.innerHTML = "AI Assistant";
-  header.style.padding = "12px";
-  header.style.color = "white";
-  header.style.borderBottom = "1px solid #222";
-  chat.appendChild(header);
+  // === TOGGLE ===
+  button.onclick = () => {
+    chat.style.display = chat.style.display === "flex" ? "none" : "flex";
+  };
 
-  // === MESSAGES ===
-  const messages = document.createElement("div");
-  messages.style.flex = "1";
-  messages.style.padding = "10px";
-  messages.style.overflowY = "auto";
-  chat.appendChild(messages);
+  const messages = chat.querySelector("#w-messages");
 
   function add(text, type) {
-    const msg = document.createElement("div");
-    msg.innerText = text;
-    msg.style.margin = "6px 0";
-    msg.style.color = type === "user" ? "white" : "#aaa";
-    msg.style.textAlign = type === "user" ? "right" : "left";
-    messages.appendChild(msg);
+    const div = document.createElement("div");
+    div.style.margin = "6px 0";
+    div.style.padding = "8px 10px";
+    div.style.borderRadius = "10px";
+    div.style.maxWidth = "80%";
+
+    if (type === "user") {
+      div.style.background = "#4f46e5";
+      div.style.marginLeft = "auto";
+      div.style.color = "#fff";
+    } else {
+      div.style.background = "#333";
+      div.style.color = "#ddd";
+    }
+
+    div.innerText = text;
+    messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
   }
 
-  // === INPUT ===
-  const input = document.createElement("input");
-  input.placeholder = "Type...";
-  input.style.border = "none";
-  input.style.padding = "10px";
-  input.style.background = "#222";
-  input.style.color = "white";
-  input.style.outline = "none";
-  chat.appendChild(input);
+  // === QUICK BUTTONS ===
+  chat.querySelectorAll(".w-btn").forEach(btn => {
+    btn.style.flex = "1";
+    btn.style.padding = "6px";
+    btn.style.background = "#222";
+    btn.style.color = "#fff";
+    btn.style.border = "none";
+    btn.style.borderRadius = "6px";
+    btn.style.cursor = "pointer";
 
-  input.addEventListener("keypress", async (e) => {
-    if (e.key === "Enter") {
-      const text = input.value;
-      add(text, "user");
-      input.value = "";
+    btn.onclick = () => {
+      send(btn.innerText);
+    };
+  });
 
+  // === SEND ===
+  async function send(text) {
+    add(text, "user");
+
+    try {
       const res = await fetch(API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -84,12 +109,18 @@
 
       const data = await res.json();
       add(data.reply, "bot");
+    } catch (e) {
+      add("Error connecting to server", "bot");
+    }
+  }
+
+  // === INPUT ===
+  chat.querySelector("#w-input").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      const text = e.target.value;
+      e.target.value = "";
+      send(text);
     }
   });
-
-  // === OPEN / CLOSE ===
-  button.onclick = () => {
-    chat.style.display = chat.style.display === "flex" ? "none" : "flex";
-  };
 
 })();
