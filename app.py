@@ -80,7 +80,9 @@ Rules:
             data=json.dumps(payload).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {api_key.strip()}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "AI-Sales-Assistant/1.0"
             },
             method="POST"
         )
