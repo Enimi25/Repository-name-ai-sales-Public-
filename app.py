@@ -1,10 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from groq import Groq
 import os
-import json
-import urllib.request
-import urllib.error
 
 app = FastAPI()
 
@@ -42,6 +40,8 @@ async def chat(request: Request):
             "reply": "GROQ_API_KEY is missing in Render Environment."
         })
 
+    client = Groq(api_key=api_key.strip())
+
     system_prompt = f"""
 You are an AI sales assistant embedded on a website.
 
@@ -64,44 +64,22 @@ Rules:
 - Do not write long explanations.
 """
 
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message}
-        ],
-        "temperature": 0.4,
-        "max_tokens": 220
-    }
-
     try:
-        req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {api_key.strip()}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "User-Agent": "AI-Sales-Assistant/1.0"
-            },
-            method="POST"
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            temperature=0.4,
+            max_tokens=220
         )
 
-        with urllib.request.urlopen(req, timeout=25) as response:
-            result = json.loads(response.read().decode("utf-8"))
-
-        reply = result["choices"][0]["message"]["content"]
+        reply = completion.choices[0].message.content
         return JSONResponse({"reply": reply})
 
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8")
-        print("GROQ HTTP ERROR:", e.code, error_body)
-        return JSONResponse({
-            "reply": "Groq error: " + error_body[:500]
-        })
-
     except Exception as e:
-        print("SERVER ERROR:", str(e))
+        print("GROQ SDK ERROR:", str(e))
         return JSONResponse({
-            "reply": "Server error: " + str(e)[:500]
+            "reply": "Groq SDK error: " + str(e)[:500]
         })
