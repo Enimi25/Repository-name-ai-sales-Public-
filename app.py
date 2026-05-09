@@ -39,7 +39,7 @@ async def chat(request: Request):
 
     if not api_key:
         return JSONResponse({
-            "reply": "AI is not connected yet. I can still help with pricing, booking, or payment."
+            "reply": "GROQ_API_KEY is missing in Render Environment."
         })
 
     system_prompt = f"""
@@ -52,22 +52,14 @@ Business context:
 - Price starts from: {price}
 - Payment link: {payment_link}
 
-Your job:
+Rules:
+- Answer briefly.
 - Act like a confident sales assistant.
-- Keep answers short and useful.
-- Help visitors understand the offer.
-- Guide people toward one of these actions:
-  1. get price
-  2. book appointment
-  3. pay now
-  4. leave email or phone
+- Help with pricing, booking, payment, or lead capture.
 - Ask only one question at a time.
-- Do not write long explanations.
-- Do not say you are an AI model.
-- If user asks price, say the price starts from {price}.
-- If user wants to book, ask for email or phone.
-- If user wants to pay, send this payment link: {payment_link}.
-- If user is unsure, explain the value in one short paragraph and ask what they want to do next.
+- If user asks price, say price starts from {price}.
+- If user wants booking, ask for email or phone.
+- If user wants payment, send this payment link: {payment_link}.
 """
 
     payload = {
@@ -85,7 +77,7 @@ Your job:
             "https://api.groq.com/openai/v1/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {api_key.strip()}",
                 "Content-Type": "application/json"
             },
             method="POST"
@@ -95,23 +87,17 @@ Your job:
             result = json.loads(response.read().decode("utf-8"))
 
         reply = result["choices"][0]["message"]["content"]
-
         return JSONResponse({"reply": reply})
 
     except urllib.error.HTTPError as e:
-        return JSONResponse({
-            "reply": "AI is temporarily unavailable. I can still help with pricing, booking, or payment."
-        })
-
-        except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
         print("GROQ HTTP ERROR:", e.code, error_body)
         return JSONResponse({
-            "reply": "Groq error: " + error_body[:300]
+            "reply": "Groq error: " + error_body[:500]
         })
 
     except Exception as e:
         print("SERVER ERROR:", str(e))
         return JSONResponse({
-            "reply": "Server error: " + str(e)[:300]
+            "reply": "Server error: " + str(e)[:500]
         })
