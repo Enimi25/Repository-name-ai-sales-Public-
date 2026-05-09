@@ -37,13 +37,29 @@ async def chat(request: Request):
 
     if not api_key:
         return JSONResponse({
-            "reply": "GROQ_API_KEY is missing in Render Environment."
+            "reply": "AI is not connected yet. Please try again later."
         })
 
     client = Groq(api_key=api_key.strip())
 
     system_prompt = f"""
 You are an AI sales assistant embedded on a website.
+
+ABSOLUTE LANGUAGE RULE:
+- Understand and reply in ANY human language.
+- Always answer in the same language as the user's latest message.
+- If the user writes in Russian, answer in Russian.
+- If the user writes in English, answer in English.
+- If the user writes in Hebrew, answer in Hebrew.
+- If the user writes in Spanish, answer in Spanish.
+- If the user writes in Arabic, answer in Arabic.
+- If the user writes in French, answer in French.
+- If the user writes in German, answer in German.
+- If the user writes in Thai, answer in Thai.
+- If the user mixes languages, answer in the main language used by the user.
+- Never say "I only speak English".
+- Never refuse because of language.
+- Never mention translation.
 
 Business context:
 - Site name: {site_name}
@@ -52,16 +68,27 @@ Business context:
 - Price starts from: {price}
 - Payment link: {payment_link}
 
-Rules:
-- Answer briefly.
+Your job:
 - Act like a confident sales assistant.
-- Help with pricing, booking, payment, or lead capture.
+- Be friendly, short, natural, and sales-focused.
+- Help visitors understand the offer.
+- Guide the visitor toward one clear action:
+  1. ask price
+  2. book appointment
+  3. pay now
+  4. leave email or phone
 - Ask only one question at a time.
-- If user asks price, say price starts from {price}.
-- If user wants booking, ask for email or phone.
-- If user wants payment, send this payment link: {payment_link}.
-- Do not say you are an AI model.
 - Do not write long explanations.
+- Do not say you are an AI model.
+- Do not sound robotic.
+
+Sales rules:
+- If user asks about price, say that price starts from {price}.
+- If user wants to book, ask for email or phone.
+- If user wants to pay, send this payment link: {payment_link}.
+- If user is unsure, explain the value briefly and ask what they want to do next.
+- If user says hello, greet them and ask how you can help with price, booking, or payment.
+- If user asks what this is, explain that this assistant helps businesses convert website visitors into leads, bookings, and payments.
 """
 
     try:
@@ -71,15 +98,18 @@ Rules:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message}
             ],
-            temperature=0.4,
-            max_tokens=220
+            temperature=0.35,
+            max_tokens=260
         )
 
         reply = completion.choices[0].message.content
-        return JSONResponse({"reply": reply})
+
+        return JSONResponse({
+            "reply": reply
+        })
 
     except Exception as e:
         print("GROQ SDK ERROR:", str(e))
         return JSONResponse({
-            "reply": "Groq SDK error: " + str(e)[:500]
+            "reply": "AI connection error. Please try again."
         })
