@@ -60,10 +60,12 @@ Rules:
 - If user asks price, say price starts from {price}.
 - If user wants booking, ask for email or phone.
 - If user wants payment, send this payment link: {payment_link}.
+- Do not say you are an AI model.
+- Do not write long explanations.
 """
 
     payload = {
-        "model": "llama-3.1-8b-instant",
+        "model": "llama-3.3-70b-versatile",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message}
