@@ -103,7 +103,15 @@ Your job:
             "reply": "AI is temporarily unavailable. I can still help with pricing, booking, or payment."
         })
 
-    except Exception:
+        except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print("GROQ HTTP ERROR:", e.code, error_body)
         return JSONResponse({
-            "reply": "Connection issue. Please try again in a moment."
+            "reply": "Groq error: " + error_body[:300]
+        })
+
+    except Exception as e:
+        print("SERVER ERROR:", str(e))
+        return JSONResponse({
+            "reply": "Server error: " + str(e)[:300]
         })
