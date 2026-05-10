@@ -765,6 +765,112 @@
     </div>
   </footer>
 
-  <script src="/widget.js"></script>
+  <!-- TRANSLATE BUTTON -->
+<div id="translate-float">
+  <button id="translate-toggle" type="button">🌐 Translate</button>
+  <div id="translate-panel">
+    <div class="translate-title">Choose language</div>
+    <div id="google_translate_element"></div>
+  </div>
+</div>
+
+<style>
+  #translate-float {
+    position: fixed;
+    right: 24px;
+    top: 96px;
+    z-index: 999998;
+    font-family: Arial, sans-serif;
+  }
+
+  #translate-toggle {
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(10,10,15,0.86);
+    color: white;
+    backdrop-filter: blur(14px);
+    border-radius: 999px;
+    padding: 12px 16px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+  }
+
+  #translate-panel {
+    display: none;
+    margin-top: 10px;
+    width: 270px;
+    padding: 16px;
+    border-radius: 20px;
+    background: rgba(15,15,22,0.96);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+  }
+
+  .translate-title {
+    color: white;
+    font-size: 14px;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+
+  #google_translate_element select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 12px;
+    background: #111118;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.14);
+    outline: none;
+  }
+
+  .goog-te-banner-frame,
+  .goog-te-gadget-icon {
+    display: none !important;
+  }
+
+  .goog-te-gadget {
+    color: transparent !important;
+    font-size: 0 !important;
+  }
+
+  body {
+    top: 0 !important;
+  }
+
+  @media (max-width: 520px) {
+    #translate-float {
+      top: 86px;
+      right: 14px;
+    }
+
+    #translate-panel {
+      width: 240px;
+    }
+  }
+</style>
+
+<script>
+  const translateToggle = document.getElementById("translate-toggle");
+  const translatePanel = document.getElementById("translate-panel");
+
+  translateToggle.addEventListener("click", function () {
+    translatePanel.style.display =
+      translatePanel.style.display === "block" ? "none" : "block";
+  });
+
+  function googleTranslateElementInit() {
+    new google.translate.TranslateElement(
+      {
+        pageLanguage: "en",
+        autoDisplay: false
+      },
+      "google_translate_element"
+    );
+  }
+</script>
+
+<script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+<script src="/widget.js"></script>
 </body>
 </html>
