@@ -8,7 +8,7 @@ import re
 import urllib.parse
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = FastAPI()
 
@@ -135,6 +135,176 @@ def save_lead_to_google_sheets(lead):
         return False
 
 
+def refresh_google_access_token(company_id):
+    companies = load_companies()
+    company = companies.get(company_id)
+
+    if not company:
+        print("No company found for calendar:", company_id)
+        return ""
+
+    refresh_token = company.get("refresh_token", "")
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not refresh_token:
+        print("No refresh token for company:", company_id)
+        return ""
+
+    if not client_id or not client_secret:
+        print("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET")
+        return ""
+
+    try:
+        payload = urllib.parse.urlencode({
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token"
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            "https://oauth2.googleapis.com/token",
+            data=payload,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            method="POST"
+        )
+
+        with urllib.request.urlopen(req, timeout=25) as response:
+            token_data = json.loads(response.read().decode("utf-8"))
+
+        access_token = token_data.get("access_token", "")
+
+        if access_token:
+            companies[company_id]["access_token"] = access_token
+            companies[company_id]["token_refreshed_at"] = datetime.utcnow().isoformat() + "Z"
+            save_companies(companies)
+
+        return access_token
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print("GOOGLE TOKEN HTTP ERROR:", e.code, error_body)
+        return ""
+
+    except Exception as e:
+        print("GOOGLE TOKEN ERROR:", str(e))
+        return ""
+
+
+def parse_calendar_datetime(message):
+    now = datetime.now()
+
+    msg = message.lower()
+
+    hour = 12
+    minute = 0
+
+    time_match = re.search(r"(\d{1,2})[:.](\d{2})", msg)
+    if time_match:
+        hour = int(time_match.group(1))
+        minute = int(time_match.group(2))
+    else:
+        hour_match = re.search(r"(?:в|at)\s+(\d{1,2})", msg)
+        if hour_match:
+            hour = int(hour_match.group(1))
+            minute = 0
+
+    if "послезавтра" in msg:
+        event_date = now + timedelta(days=2)
+    elif "завтра" in msg or "tomorrow" in msg:
+        event_date = now + timedelta(days=1)
+    else:
+        event_date = now + timedelta(days=1)
+
+    start = event_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    end = start + timedelta(minutes=30)
+
+    return start, end
+
+
+def create_google_calendar_event(company_id, lead):
+    companies = load_companies()
+    company = companies.get(company_id)
+
+    if not company or not company.get("google_connected"):
+        print("Calendar not connected for company:", company_id)
+        return False
+
+    access_token = refresh_google_access_token(company_id)
+
+    if not access_token:
+        print("No access token for calendar event")
+        return False
+
+    try:
+        message = lead.get("message", "")
+        phone = lead.get("phone", "")
+        email = lead.get("email", "")
+        site_name = lead.get("siteName", "AI Sales Assistant")
+
+        start_dt, end_dt = parse_calendar_datetime(message)
+
+        title_contact = phone or email or "new lead"
+        summary = "AI Sales Lead — " + title_contact
+
+        description = (
+            "New lead from AI Sales Assistant\n\n"
+            + "Company ID: " + lead.get("companyId", "") + "\n"
+            + "Site: " + site_name + "\n"
+            + "Source: " + lead.get("source", "") + "\n"
+            + "Language: " + lead.get("language", "") + "\n"
+            + "Phone: " + phone + "\n"
+            + "Email: " + email + "\n"
+            + "Message: " + message + "\n"
+        )
+
+        event = {
+            "summary": summary,
+            "description": description,
+            "start": {
+                "dateTime": start_dt.isoformat(),
+                "timeZone": "Asia/Jerusalem"
+            },
+            "end": {
+                "dateTime": end_dt.isoformat(),
+                "timeZone": "Asia/Jerusalem"
+            }
+        }
+
+        calendar_id = company.get("calendar_id", "primary")
+        url = "https://www.googleapis.com/calendar/v3/calendars/" + urllib.parse.quote(calendar_id, safe="") + "/events"
+
+        payload = json.dumps(event).encode("utf-8")
+
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Authorization": "Bearer " + access_token,
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
+
+        with urllib.request.urlopen(req, timeout=25) as response:
+            body = response.read().decode("utf-8")
+            print("GOOGLE CALENDAR RESPONSE:", body)
+
+        return True
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print("GOOGLE CALENDAR HTTP ERROR:", e.code, error_body)
+        return False
+
+    except Exception as e:
+        print("GOOGLE CALENDAR ERROR:", str(e))
+        return False
+
+
 def save_lead(message, email, phone, source, language, site_name, company_id):
     lead = {
         "time": datetime.utcnow().isoformat() + "Z",
@@ -150,10 +320,12 @@ def save_lead(message, email, phone, source, language, site_name, company_id):
 
     save_lead_local(lead)
     saved_to_sheets = save_lead_to_google_sheets(lead)
+    saved_to_calendar = create_google_calendar_event(company_id, lead)
 
     return {
         "lead": lead,
-        "saved_to_sheets": saved_to_sheets
+        "saved_to_sheets": saved_to_sheets,
+        "saved_to_calendar": saved_to_calendar
     }
 
 
@@ -367,6 +539,7 @@ async def chat(request: Request):
 
     lead_saved = False
     saved_to_sheets = False
+    saved_to_calendar = False
 
     if email or phone:
         result = save_lead(
@@ -381,6 +554,7 @@ async def chat(request: Request):
 
         lead_saved = True
         saved_to_sheets = result["saved_to_sheets"]
+        saved_to_calendar = result["saved_to_calendar"]
 
     client = Groq(api_key=api_key.strip())
 
@@ -437,6 +611,8 @@ Sales rules:
 - If user sends email or phone, confirm that the request was received and say that the team will contact them soon.
 - If user wants to pay, send this payment link: {payment_link}.
 - If user asks about Instagram or social media, answer that Instagram/Facebook can be connected later, but now you can help here with price, booking, or payment.
+- If user says they want to book tomorrow or at a certain time, ask for phone/email if they did not provide it.
+- If user already provided phone/email, confirm that the request was received and that the team will contact them soon.
 - If user is unsure, explain the value briefly and ask what they want to do next.
 - If user says hello, greet them and ask how you can help with price, booking, or payment.
 - If user asks what this is, explain that this assistant helps businesses convert website visitors into leads, bookings, and payments.
@@ -464,6 +640,7 @@ Answer format:
             "reply": reply,
             "lead_saved": lead_saved,
             "saved_to_sheets": saved_to_sheets,
+            "saved_to_calendar": saved_to_calendar,
             "companyId": company_id
         })
 
