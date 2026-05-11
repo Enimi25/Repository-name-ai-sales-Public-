@@ -10,10 +10,13 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+
 app = FastAPI()
 
 LEADS_FILE = "leads.json"
-COMPANIES_FILE = "companies.json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +25,225 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_db_connection():
+    database_url = os.getenv("DATABASE_URL")
+
+    if not database_url:
+        print("DATABASE_URL is missing")
+        return None
+
+    try:
+        return psycopg2.connect(database_url, sslmode="require")
+    except Exception as e:
+        print("DATABASE CONNECTION ERROR:", str(e))
+        return None
+
+
+def init_db():
+    conn = get_db_connection()
+
+    if not conn:
+        return False
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS companies (
+                    company_id TEXT PRIMARY KEY,
+                    google_connected BOOLEAN DEFAULT FALSE,
+                    google_email TEXT DEFAULT '',
+                    google_name TEXT DEFAULT '',
+                    access_token TEXT DEFAULT '',
+                    refresh_token TEXT DEFAULT '',
+                    calendar_id TEXT DEFAULT 'primary',
+                    sheet_id TEXT DEFAULT '',
+                    connected_at TEXT DEFAULT '',
+                    token_refreshed_at TEXT DEFAULT ''
+                );
+            """)
+
+            conn.commit()
+
+        print("DATABASE READY")
+        return True
+
+    except Exception as e:
+        print("DATABASE INIT ERROR:", str(e))
+        return False
+
+    finally:
+        conn.close()
+
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
+
+
+def get_company(company_id):
+    conn = get_db_connection()
+
+    if not conn:
+        return None
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM companies WHERE company_id = %s",
+                (company_id,)
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return None
+
+        return dict(row)
+
+    except Exception as e:
+        print("GET COMPANY ERROR:", str(e))
+        return None
+
+    finally:
+        conn.close()
+
+
+def upsert_company(company):
+    conn = get_db_connection()
+
+    if not conn:
+        return False
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO companies (
+                    company_id,
+                    google_connected,
+                    google_email,
+                    google_name,
+                    access_token,
+                    refresh_token,
+                    calendar_id,
+                    sheet_id,
+                    connected_at,
+                    token_refreshed_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (company_id)
+                DO UPDATE SET
+                    google_connected = EXCLUDED.google_connected,
+                    google_email = EXCLUDED.google_email,
+                    google_name = EXCLUDED.google_name,
+                    access_token = EXCLUDED.access_token,
+                    refresh_token = EXCLUDED.refresh_token,
+                    calendar_id = EXCLUDED.calendar_id,
+                    sheet_id = EXCLUDED.sheet_id,
+                    connected_at = EXCLUDED.connected_at,
+                    token_refreshed_at = EXCLUDED.token_refreshed_at;
+            """, (
+                company.get("company_id", ""),
+                company.get("google_connected", False),
+                company.get("google_email", ""),
+                company.get("google_name", ""),
+                company.get("access_token", ""),
+                company.get("refresh_token", ""),
+                company.get("calendar_id", "primary"),
+                company.get("sheet_id", ""),
+                company.get("connected_at", ""),
+                company.get("token_refreshed_at", "")
+            ))
+
+            conn.commit()
+
+        return True
+
+    except Exception as e:
+        print("UPSERT COMPANY ERROR:", str(e))
+        return False
+
+    finally:
+        conn.close()
+
+
+def update_company_access_token(company_id, access_token):
+    conn = get_db_connection()
+
+    if not conn:
+        return False
+
+    try:
+        token_refreshed_at = datetime.utcnow().isoformat() + "Z"
+
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE companies
+                SET access_token = %s,
+                    token_refreshed_at = %s
+                WHERE company_id = %s
+            """, (
+                access_token,
+                token_refreshed_at,
+                company_id
+            ))
+
+            conn.commit()
+
+        return True
+
+    except Exception as e:
+        print("UPDATE ACCESS TOKEN ERROR:", str(e))
+        return False
+
+    finally:
+        conn.close()
+
+
+def get_all_companies_safe():
+    conn = get_db_connection()
+
+    if not conn:
+        return {}
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    company_id,
+                    google_connected,
+                    google_email,
+                    google_name,
+                    calendar_id,
+                    sheet_id,
+                    connected_at
+                FROM companies
+                ORDER BY connected_at DESC
+            """)
+
+            rows = cur.fetchall()
+
+        result = {}
+
+        for row in rows:
+            result[row["company_id"]] = {
+                "companyId": row["company_id"],
+                "google_connected": row["google_connected"],
+                "google_email": row["google_email"],
+                "google_name": row["google_name"],
+                "calendar_id": row["calendar_id"],
+                "sheet_id": row["sheet_id"],
+                "connected_at": row["connected_at"]
+            }
+
+        return result
+
+    except Exception as e:
+        print("GET ALL COMPANIES ERROR:", str(e))
+        return {}
+
+    finally:
+        conn.close()
 
 
 @app.get("/")
@@ -45,22 +267,6 @@ def get_leads():
         return JSONResponse({"leads": leads})
     except Exception:
         return JSONResponse({"leads": []})
-
-
-def load_companies():
-    if not os.path.exists(COMPANIES_FILE):
-        return {}
-
-    try:
-        with open(COMPANIES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-def save_companies(companies):
-    with open(COMPANIES_FILE, "w", encoding="utf-8") as f:
-        json.dump(companies, f, ensure_ascii=False, indent=2)
 
 
 def extract_email(text: str):
@@ -136,8 +342,7 @@ def save_lead_to_google_sheets(lead):
 
 
 def refresh_google_access_token(company_id):
-    companies = load_companies()
-    company = companies.get(company_id)
+    company = get_company(company_id)
 
     if not company:
         print("No company found for calendar:", company_id)
@@ -178,9 +383,7 @@ def refresh_google_access_token(company_id):
         access_token = token_data.get("access_token", "")
 
         if access_token:
-            companies[company_id]["access_token"] = access_token
-            companies[company_id]["token_refreshed_at"] = datetime.utcnow().isoformat() + "Z"
-            save_companies(companies)
+            update_company_access_token(company_id, access_token)
 
         return access_token
 
@@ -225,8 +428,7 @@ def parse_calendar_datetime(message):
 
 
 def create_google_calendar_event(company_id, lead):
-    companies = load_companies()
-    company = companies.get(company_id)
+    company = get_company(company_id)
 
     if not company or not company.get("google_connected"):
         print("Calendar not connected for company:", company_id)
@@ -553,14 +755,20 @@ def google_callback(code: str = "", state: str = "default_company"):
 
         company_id = state or "default_company"
 
-        companies = load_companies()
-        old_company = companies.get(company_id, {})
+        old_company = get_company(company_id)
+
+        old_refresh_token = ""
+        old_sheet_id = ""
+
+        if old_company:
+            old_refresh_token = old_company.get("refresh_token", "")
+            old_sheet_id = old_company.get("sheet_id", "")
 
         if not refresh_token:
-            refresh_token = old_company.get("refresh_token", "")
+            refresh_token = old_refresh_token
 
-        companies[company_id] = {
-            "companyId": company_id,
+        company = {
+            "company_id": company_id,
             "google_connected": True,
             "google_email": user_email,
             "google_name": user_name,
@@ -568,10 +776,11 @@ def google_callback(code: str = "", state: str = "default_company"):
             "refresh_token": refresh_token,
             "connected_at": datetime.utcnow().isoformat() + "Z",
             "calendar_id": "primary",
-            "sheet_id": old_company.get("sheet_id", "")
+            "sheet_id": old_sheet_id,
+            "token_refreshed_at": ""
         }
 
-        save_companies(companies)
+        upsert_company(company)
 
         return HTMLResponse(f"""
         <html>
@@ -602,8 +811,7 @@ def google_callback(code: str = "", state: str = "default_company"):
 
 @app.get("/company/status")
 def company_status(companyId: str = "default_company"):
-    companies = load_companies()
-    company = companies.get(companyId)
+    company = get_company(companyId)
 
     if not company:
         return JSONResponse({
@@ -624,22 +832,8 @@ def company_status(companyId: str = "default_company"):
 
 @app.get("/companies")
 def get_companies():
-    companies = load_companies()
-
-    safe_companies = {}
-
-    for company_id, company in companies.items():
-        safe_companies[company_id] = {
-            "companyId": company.get("companyId", company_id),
-            "google_connected": company.get("google_connected", False),
-            "google_email": company.get("google_email", ""),
-            "google_name": company.get("google_name", ""),
-            "calendar_id": company.get("calendar_id", "primary"),
-            "sheet_id": company.get("sheet_id", ""),
-            "connected_at": company.get("connected_at", "")
-        }
-
-    return JSONResponse({"companies": safe_companies})
+    companies = get_all_companies_safe()
+    return JSONResponse({"companies": companies})
 
 
 @app.get("/meta/webhook")
