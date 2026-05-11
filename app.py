@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, HTMLResponse, PlainTextResponsefrom fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, HTMLResponse, PlainTextResponse
+from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 import os
 import json
@@ -195,7 +196,6 @@ def refresh_google_access_token(company_id):
 
 def parse_calendar_datetime(message):
     now = datetime.now()
-
     msg = message.lower()
 
     hour = 12
@@ -510,6 +510,35 @@ def get_companies():
         }
 
     return JSONResponse({"companies": safe_companies})
+
+
+@app.get("/meta/webhook")
+async def verify_meta_webhook(request: Request):
+    params = request.query_params
+
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
+
+    verify_token = os.getenv("META_VERIFY_TOKEN", "ai_flow_verify_2026")
+
+    if mode == "subscribe" and token == verify_token:
+        print("META WEBHOOK VERIFIED")
+        return PlainTextResponse(challenge or "")
+
+    print("META WEBHOOK VERIFY FAILED")
+    return PlainTextResponse("Forbidden", status_code=403)
+
+
+@app.post("/meta/webhook")
+async def receive_meta_webhook(request: Request):
+    try:
+        data = await request.json()
+        print("META WEBHOOK EVENT:", json.dumps(data, ensure_ascii=False))
+    except Exception as e:
+        print("META WEBHOOK ERROR:", str(e))
+
+    return JSONResponse({"ok": True})
 
 
 @app.post("/chat")
