@@ -2,3 +2,5 @@ fastapi
 uvicorn
 pydantic
 groq
+gspread
+google-auth
