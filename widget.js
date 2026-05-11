@@ -5,7 +5,7 @@
 
   const API = config.apiUrl || DEFAULT_API;
 
-  const companyId = config.companyId || "default_company";
+  const companyId = config.companyId || "ai_sales_assistant_main";
   const siteName = config.siteName || document.title || "this business";
   const businessType = config.businessType || "online business";
   const offer = config.offer || "AI Sales Assistant";
