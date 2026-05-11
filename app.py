@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, HTMLResponse, PlainTextResponsefrom fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 import os
 import json
