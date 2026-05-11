@@ -6,6 +6,8 @@ import os
 import json
 import re
 from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
 
 app = FastAPI()
 
@@ -45,12 +47,12 @@ def get_leads():
 
 def extract_email(text: str):
     match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
-    return match.group(0) if match else None
+    return match.group(0) if match else ""
 
 
 def extract_phone(text: str):
     match = re.search(r"(\+?\d[\d\s\-\(\)]{7,}\d)", text)
-    return match.group(0).strip() if match else None
+    return match.group(0).strip() if match else ""
 
 
 def detect_language_hint(text: str):
@@ -63,18 +65,7 @@ def detect_language_hint(text: str):
     return "auto"
 
 
-def save_lead(message, email, phone, source, language, site_name):
-    lead = {
-        "time": datetime.utcnow().isoformat() + "Z",
-        "site": site_name,
-        "source": source,
-        "language": language,
-        "message": message,
-        "email": email,
-        "phone": phone,
-        "status": "new"
-    }
-
+def save_lead_local(lead):
     leads = []
 
     if os.path.exists(LEADS_FILE):
@@ -89,7 +80,70 @@ def save_lead(message, email, phone, source, language, site_name):
     with open(LEADS_FILE, "w", encoding="utf-8") as f:
         json.dump(leads, f, ensure_ascii=False, indent=2)
 
-    return lead
+
+def save_lead_to_google_sheets(lead):
+    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+    service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+
+    if not sheet_id or not service_account_json:
+        print("GOOGLE SHEETS NOT CONFIGURED")
+        return False
+
+    try:
+        service_account_info = json.loads(service_account_json)
+
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+
+        credentials = Credentials.from_service_account_info(
+            service_account_info,
+            scopes=scopes
+        )
+
+        client = gspread.authorize(credentials)
+        sheet = client.open_by_key(sheet_id).sheet1
+
+        sheet.append_row([
+            lead.get("time", ""),
+            lead.get("companyId", ""),
+            lead.get("siteName", ""),
+            lead.get("source", ""),
+            lead.get("language", ""),
+            lead.get("message", ""),
+            lead.get("email", ""),
+            lead.get("phone", ""),
+            lead.get("status", "")
+        ])
+
+        return True
+
+    except Exception as e:
+        print("GOOGLE SHEETS ERROR:", str(e))
+        return False
+
+
+def save_lead(message, email, phone, source, language, site_name, company_id):
+    lead = {
+        "time": datetime.utcnow().isoformat() + "Z",
+        "companyId": company_id,
+        "siteName": site_name,
+        "source": source,
+        "language": language,
+        "message": message,
+        "email": email,
+        "phone": phone,
+        "status": "new"
+    }
+
+    save_lead_local(lead)
+    saved_to_sheets = save_lead_to_google_sheets(lead)
+
+    return {
+        "lead": lead,
+        "saved_to_sheets": saved_to_sheets
+    }
 
 
 @app.post("/chat")
@@ -97,6 +151,7 @@ async def chat(request: Request):
     data = await request.json()
 
     message = data.get("message", "")
+    company_id = data.get("companyId", "default_company")
     site_name = data.get("siteName", "this business")
     business_type = data.get("businessType", "online business")
     offer = data.get("offer", "AI Sales Assistant")
@@ -115,15 +170,22 @@ async def chat(request: Request):
     phone = extract_phone(message)
     language = detect_language_hint(message)
 
+    lead_saved = False
+    saved_to_sheets = False
+
     if email or phone:
-        save_lead(
+        result = save_lead(
             message=message,
             email=email,
             phone=phone,
             source=source,
             language=language,
-            site_name=site_name
+            site_name=site_name,
+            company_id=company_id
         )
+
+        lead_saved = True
+        saved_to_sheets = result["saved_to_sheets"]
 
     client = Groq(api_key=api_key.strip())
 
@@ -153,6 +215,7 @@ ABSOLUTE LANGUAGE RULE:
 - Never mention translation.
 
 Business context:
+- Company ID: {company_id}
 - Site name: {site_name}
 - Business type: {business_type}
 - Offer: {offer}
@@ -204,7 +267,9 @@ Answer format:
 
         return JSONResponse({
             "reply": reply,
-            "lead_saved": bool(email or phone)
+            "lead_saved": lead_saved,
+            "saved_to_sheets": saved_to_sheets,
+            "companyId": company_id
         })
 
     except Exception as e:
