@@ -1,17 +1,19 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 import os
 import json
 import re
-from datetime import datetime
+import urllib.parse
 import urllib.request
 import urllib.error
+from datetime import datetime
 
 app = FastAPI()
 
 LEADS_FILE = "leads.json"
+COMPANIES_FILE = "companies.json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,6 +45,22 @@ def get_leads():
         return JSONResponse({"leads": leads})
     except Exception:
         return JSONResponse({"leads": []})
+
+
+def load_companies():
+    if not os.path.exists(COMPANIES_FILE):
+        return {}
+
+    try:
+        with open(COMPANIES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_companies(companies):
+    with open(COMPANIES_FILE, "w", encoding="utf-8") as f:
+        json.dump(companies, f, ensure_ascii=False, indent=2)
 
 
 def extract_email(text: str):
@@ -137,6 +155,190 @@ def save_lead(message, email, phone, source, language, site_name, company_id):
         "lead": lead,
         "saved_to_sheets": saved_to_sheets
     }
+
+
+@app.get("/connect/google")
+def connect_google(companyId: str = "default_company"):
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+
+    if not client_id or not redirect_uri:
+        return HTMLResponse("""
+        <h2>Google OAuth is not configured</h2>
+        <p>Missing GOOGLE_CLIENT_ID or GOOGLE_REDIRECT_URI in Render Environment.</p>
+        """)
+
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "openid"
+    ]
+
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": " ".join(scopes),
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": companyId
+    }
+
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+
+    return RedirectResponse(auth_url)
+
+
+@app.get("/google/callback")
+def google_callback(code: str = "", state: str = "default_company"):
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+
+    if not code:
+        return HTMLResponse("""
+        <h2>Google connection failed</h2>
+        <p>No authorization code received.</p>
+        """)
+
+    if not client_id or not client_secret or not redirect_uri:
+        return HTMLResponse("""
+        <h2>Google OAuth is not configured</h2>
+        <p>Missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_REDIRECT_URI.</p>
+        """)
+
+    try:
+        token_payload = urllib.parse.urlencode({
+            "code": code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }).encode("utf-8")
+
+        token_req = urllib.request.Request(
+            "https://oauth2.googleapis.com/token",
+            data=token_payload,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            method="POST"
+        )
+
+        with urllib.request.urlopen(token_req, timeout=25) as token_response:
+            token_data = json.loads(token_response.read().decode("utf-8"))
+
+        access_token = token_data.get("access_token", "")
+        refresh_token = token_data.get("refresh_token", "")
+
+        user_email = ""
+        user_name = ""
+
+        if access_token:
+            user_req = urllib.request.Request(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={
+                    "Authorization": "Bearer " + access_token
+                },
+                method="GET"
+            )
+
+            with urllib.request.urlopen(user_req, timeout=25) as user_response:
+                user_data = json.loads(user_response.read().decode("utf-8"))
+                user_email = user_data.get("email", "")
+                user_name = user_data.get("name", "")
+
+        company_id = state or "default_company"
+
+        companies = load_companies()
+        old_company = companies.get(company_id, {})
+
+        if not refresh_token:
+            refresh_token = old_company.get("refresh_token", "")
+
+        companies[company_id] = {
+            "companyId": company_id,
+            "google_connected": True,
+            "google_email": user_email,
+            "google_name": user_name,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "connected_at": datetime.utcnow().isoformat() + "Z",
+            "calendar_id": "primary",
+            "sheet_id": old_company.get("sheet_id", "")
+        }
+
+        save_companies(companies)
+
+        return HTMLResponse(f"""
+        <html>
+          <body style="font-family: Arial; padding: 40px;">
+            <h1>✅ Google connected successfully</h1>
+            <p><b>Company ID:</b> {company_id}</p>
+            <p><b>Google account:</b> {user_email}</p>
+            <p>You can close this page.</p>
+          </body>
+        </html>
+        """)
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print("GOOGLE OAUTH HTTP ERROR:", e.code, error_body)
+        return HTMLResponse(f"""
+        <h2>Google OAuth error</h2>
+        <pre>{error_body}</pre>
+        """)
+
+    except Exception as e:
+        print("GOOGLE OAUTH ERROR:", str(e))
+        return HTMLResponse(f"""
+        <h2>Google OAuth error</h2>
+        <pre>{str(e)}</pre>
+        """)
+
+
+@app.get("/company/status")
+def company_status(companyId: str = "default_company"):
+    companies = load_companies()
+    company = companies.get(companyId)
+
+    if not company:
+        return JSONResponse({
+            "companyId": companyId,
+            "google_connected": False
+        })
+
+    return JSONResponse({
+        "companyId": companyId,
+        "google_connected": company.get("google_connected", False),
+        "google_email": company.get("google_email", ""),
+        "google_name": company.get("google_name", ""),
+        "calendar_id": company.get("calendar_id", "primary"),
+        "sheet_id": company.get("sheet_id", ""),
+        "connected_at": company.get("connected_at", "")
+    })
+
+
+@app.get("/companies")
+def get_companies():
+    companies = load_companies()
+
+    safe_companies = {}
+
+    for company_id, company in companies.items():
+        safe_companies[company_id] = {
+            "companyId": company.get("companyId", company_id),
+            "google_connected": company.get("google_connected", False),
+            "google_email": company.get("google_email", ""),
+            "google_name": company.get("google_name", ""),
+            "calendar_id": company.get("calendar_id", "primary"),
+            "sheet_id": company.get("sheet_id", ""),
+            "connected_at": company.get("connected_at", "")
+        }
+
+    return JSONResponse({"companies": safe_companies})
 
 
 @app.post("/chat")
