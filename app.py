@@ -1,7 +1,15 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    RedirectResponse,
+    HTMLResponse,
+    PlainTextResponse,
+)
 from fastapi.middleware.cors import CORSMiddleware
+
 from groq import Groq
+
 import os
 import json
 import re
@@ -18,6 +26,7 @@ app = FastAPI()
 
 LEADS_FILE = "leads.json"
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,6 +35,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# =========================================================
+# DATABASE
+# =========================================================
 
 def get_db_connection():
     database_url = os.getenv("DATABASE_URL")
@@ -49,7 +62,8 @@ def init_db():
 
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS companies (
                     company_id TEXT PRIMARY KEY,
                     google_connected BOOLEAN DEFAULT FALSE,
@@ -62,10 +76,10 @@ def init_db():
                     connected_at TEXT DEFAULT '',
                     token_refreshed_at TEXT DEFAULT ''
                 );
-            """)
+                """
+            )
 
-            conn.commit()
-
+        conn.commit()
         print("DATABASE READY")
         return True
 
@@ -92,14 +106,14 @@ def get_company(company_id):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 "SELECT * FROM companies WHERE company_id = %s",
-                (company_id,)
+                (company_id,),
             )
             row = cur.fetchone()
 
-        if not row:
-            return None
+            if not row:
+                return None
 
-        return dict(row)
+            return dict(row)
 
     except Exception as e:
         print("GET COMPANY ERROR:", str(e))
@@ -117,7 +131,8 @@ def upsert_company(company):
 
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO companies (
                     company_id,
                     google_connected,
@@ -131,8 +146,7 @@ def upsert_company(company):
                     token_refreshed_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (company_id)
-                DO UPDATE SET
+                ON CONFLICT (company_id) DO UPDATE SET
                     google_connected = EXCLUDED.google_connected,
                     google_email = EXCLUDED.google_email,
                     google_name = EXCLUDED.google_name,
@@ -142,21 +156,22 @@ def upsert_company(company):
                     sheet_id = EXCLUDED.sheet_id,
                     connected_at = EXCLUDED.connected_at,
                     token_refreshed_at = EXCLUDED.token_refreshed_at;
-            """, (
-                company.get("company_id", ""),
-                company.get("google_connected", False),
-                company.get("google_email", ""),
-                company.get("google_name", ""),
-                company.get("access_token", ""),
-                company.get("refresh_token", ""),
-                company.get("calendar_id", "primary"),
-                company.get("sheet_id", ""),
-                company.get("connected_at", ""),
-                company.get("token_refreshed_at", "")
-            ))
+                """,
+                (
+                    company.get("company_id", ""),
+                    company.get("google_connected", False),
+                    company.get("google_email", ""),
+                    company.get("google_name", ""),
+                    company.get("access_token", ""),
+                    company.get("refresh_token", ""),
+                    company.get("calendar_id", "primary"),
+                    company.get("sheet_id", ""),
+                    company.get("connected_at", ""),
+                    company.get("token_refreshed_at", ""),
+                ),
+            )
 
-            conn.commit()
-
+        conn.commit()
         return True
 
     except Exception as e:
@@ -177,19 +192,21 @@ def update_company_access_token(company_id, access_token):
         token_refreshed_at = datetime.utcnow().isoformat() + "Z"
 
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE companies
                 SET access_token = %s,
                     token_refreshed_at = %s
                 WHERE company_id = %s
-            """, (
-                access_token,
-                token_refreshed_at,
-                company_id
-            ))
+                """,
+                (
+                    access_token,
+                    token_refreshed_at,
+                    company_id,
+                ),
+            )
 
-            conn.commit()
-
+        conn.commit()
         return True
 
     except Exception as e:
@@ -208,7 +225,8 @@ def get_all_companies_safe():
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     company_id,
                     google_connected,
@@ -219,24 +237,24 @@ def get_all_companies_safe():
                     connected_at
                 FROM companies
                 ORDER BY connected_at DESC
-            """)
+                """
+            )
 
             rows = cur.fetchall()
+            result = {}
 
-        result = {}
+            for row in rows:
+                result[row["company_id"]] = {
+                    "companyId": row["company_id"],
+                    "google_connected": row["google_connected"],
+                    "google_email": row["google_email"],
+                    "google_name": row["google_name"],
+                    "calendar_id": row["calendar_id"],
+                    "sheet_id": row["sheet_id"],
+                    "connected_at": row["connected_at"],
+                }
 
-        for row in rows:
-            result[row["company_id"]] = {
-                "companyId": row["company_id"],
-                "google_connected": row["google_connected"],
-                "google_email": row["google_email"],
-                "google_name": row["google_name"],
-                "calendar_id": row["calendar_id"],
-                "sheet_id": row["sheet_id"],
-                "connected_at": row["connected_at"]
-            }
-
-        return result
+            return result
 
     except Exception as e:
         print("GET ALL COMPANIES ERROR:", str(e))
@@ -245,6 +263,10 @@ def get_all_companies_safe():
     finally:
         conn.close()
 
+
+# =========================================================
+# STATIC PAGES
+# =========================================================
 
 @app.get("/")
 def home():
@@ -256,6 +278,33 @@ def widget():
     return FileResponse("widget.js", media_type="application/javascript")
 
 
+@app.get("/privacy.html", response_class=HTMLResponse)
+def privacy_page():
+    if not os.path.exists("privacy.html"):
+        return HTMLResponse("<h1>Privacy Policy not found</h1>", status_code=404)
+
+    with open("privacy.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/terms.html", response_class=HTMLResponse)
+def terms_page():
+    if not os.path.exists("terms.html"):
+        return HTMLResponse("<h1>Terms not found</h1>", status_code=404)
+
+    with open("terms.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/data-deletion.html", response_class=HTMLResponse)
+def data_deletion_page():
+    if not os.path.exists("data-deletion.html"):
+        return HTMLResponse("<h1>Data Deletion page not found</h1>", status_code=404)
+
+    with open("data-deletion.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+
 @app.get("/leads")
 def get_leads():
     if not os.path.exists(LEADS_FILE):
@@ -264,28 +313,45 @@ def get_leads():
     try:
         with open(LEADS_FILE, "r", encoding="utf-8") as f:
             leads = json.load(f)
+
         return JSONResponse({"leads": leads})
+
     except Exception:
         return JSONResponse({"leads": []})
 
 
+# =========================================================
+# HELPERS
+# =========================================================
+
 def extract_email(text: str):
-    match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
+    match = re.search(
+        r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+        text,
+    )
+
     return match.group(0) if match else ""
 
 
 def extract_phone(text: str):
-    match = re.search(r"(\+?\d[\d\s\-\(\)]{7,}\d)", text)
+    match = re.search(
+        r"(\+?\d[\d\s\-\(\)]{7,}\d)",
+        text,
+    )
+
     return match.group(0).strip() if match else ""
 
 
 def detect_language_hint(text: str):
     if re.search(r"[а-яА-ЯёЁ]", text):
         return "ru"
+
     if re.search(r"[\u0590-\u05FF]", text):
         return "he"
+
     if re.search(r"[\u0600-\u06FF]", text):
         return "ar"
+
     return "auto"
 
 
@@ -305,6 +371,10 @@ def save_lead_local(lead):
         json.dump(leads, f, ensure_ascii=False, indent=2)
 
 
+# =========================================================
+# GOOGLE SHEETS
+# =========================================================
+
 def save_lead_to_google_sheets(lead):
     webhook_url = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL")
 
@@ -320,16 +390,15 @@ def save_lead_to_google_sheets(lead):
             data=payload,
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "AI-Sales-Assistant/1.0"
+                "User-Agent": "AI-Sales-Assistant/1.0",
             },
-            method="POST"
+            method="POST",
         )
 
         with urllib.request.urlopen(req, timeout=20) as response:
             body = response.read().decode("utf-8")
             print("GOOGLE SHEETS RESPONSE:", body)
-
-        return True
+            return True
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
@@ -340,6 +409,10 @@ def save_lead_to_google_sheets(lead):
         print("GOOGLE SHEETS ERROR:", str(e))
         return False
 
+
+# =========================================================
+# GOOGLE CALENDAR
+# =========================================================
 
 def refresh_google_access_token(company_id):
     company = get_company(company_id)
@@ -361,31 +434,32 @@ def refresh_google_access_token(company_id):
         return ""
 
     try:
-        payload = urllib.parse.urlencode({
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token"
-        }).encode("utf-8")
+        payload = urllib.parse.urlencode(
+            {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }
+        ).encode("utf-8")
 
         req = urllib.request.Request(
             "https://oauth2.googleapis.com/token",
             data=payload,
             headers={
-                "Content-Type": "application/x-www-form-urlencoded"
+                "Content-Type": "application/x-www-form-urlencoded",
             },
-            method="POST"
+            method="POST",
         )
 
         with urllib.request.urlopen(req, timeout=25) as response:
             token_data = json.loads(response.read().decode("utf-8"))
+            access_token = token_data.get("access_token", "")
 
-        access_token = token_data.get("access_token", "")
+            if access_token:
+                update_company_access_token(company_id, access_token)
 
-        if access_token:
-            update_company_access_token(company_id, access_token)
-
-        return access_token
+            return access_token
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
@@ -405,11 +479,13 @@ def parse_calendar_datetime(message):
     minute = 0
 
     time_match = re.search(r"(\d{1,2})[:.](\d{2})", msg)
+
     if time_match:
         hour = int(time_match.group(1))
         minute = int(time_match.group(2))
     else:
         hour_match = re.search(r"(?:в|at)\s+(\d{1,2})", msg)
+
         if hour_match:
             hour = int(hour_match.group(1))
             minute = 0
@@ -421,7 +497,13 @@ def parse_calendar_datetime(message):
     else:
         event_date = now + timedelta(days=1)
 
-    start = event_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    start = event_date.replace(
+        hour=hour,
+        minute=minute,
+        second=0,
+        microsecond=0,
+    )
+
     end = start + timedelta(minutes=30)
 
     return start, end
@@ -453,13 +535,27 @@ def create_google_calendar_event(company_id, lead):
 
         description = (
             "New lead from AI Sales Assistant\n\n"
-            + "Company ID: " + lead.get("companyId", "") + "\n"
-            + "Site: " + site_name + "\n"
-            + "Source: " + lead.get("source", "") + "\n"
-            + "Language: " + lead.get("language", "") + "\n"
-            + "Phone: " + phone + "\n"
-            + "Email: " + email + "\n"
-            + "Message: " + message + "\n"
+            + "Company ID: "
+            + lead.get("companyId", "")
+            + "\n"
+            + "Site: "
+            + site_name
+            + "\n"
+            + "Source: "
+            + lead.get("source", "")
+            + "\n"
+            + "Language: "
+            + lead.get("language", "")
+            + "\n"
+            + "Phone: "
+            + phone
+            + "\n"
+            + "Email: "
+            + email
+            + "\n"
+            + "Message: "
+            + message
+            + "\n"
         )
 
         event = {
@@ -467,16 +563,21 @@ def create_google_calendar_event(company_id, lead):
             "description": description,
             "start": {
                 "dateTime": start_dt.isoformat(),
-                "timeZone": "Asia/Jerusalem"
+                "timeZone": "Asia/Jerusalem",
             },
             "end": {
                 "dateTime": end_dt.isoformat(),
-                "timeZone": "Asia/Jerusalem"
-            }
+                "timeZone": "Asia/Jerusalem",
+            },
         }
 
         calendar_id = company.get("calendar_id", "primary")
-        url = "https://www.googleapis.com/calendar/v3/calendars/" + urllib.parse.quote(calendar_id, safe="") + "/events"
+
+        url = (
+            "https://www.googleapis.com/calendar/v3/calendars/"
+            + urllib.parse.quote(calendar_id, safe="")
+            + "/events"
+        )
 
         payload = json.dumps(event).encode("utf-8")
 
@@ -485,16 +586,15 @@ def create_google_calendar_event(company_id, lead):
             data=payload,
             headers={
                 "Authorization": "Bearer " + access_token,
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
-            method="POST"
+            method="POST",
         )
 
         with urllib.request.urlopen(req, timeout=25) as response:
             body = response.read().decode("utf-8")
             print("GOOGLE CALENDAR RESPONSE:", body)
-
-        return True
+            return True
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
@@ -506,6 +606,10 @@ def create_google_calendar_event(company_id, lead):
         return False
 
 
+# =========================================================
+# LEADS
+# =========================================================
+
 def save_lead(message, email, phone, source, language, site_name, company_id):
     lead = {
         "time": datetime.utcnow().isoformat() + "Z",
@@ -516,21 +620,34 @@ def save_lead(message, email, phone, source, language, site_name, company_id):
         "message": message,
         "email": email,
         "phone": phone,
-        "status": "new"
+        "status": "new",
     }
 
     save_lead_local(lead)
+
     saved_to_sheets = save_lead_to_google_sheets(lead)
     saved_to_calendar = create_google_calendar_event(company_id, lead)
 
     return {
         "lead": lead,
         "saved_to_sheets": saved_to_sheets,
-        "saved_to_calendar": saved_to_calendar
+        "saved_to_calendar": saved_to_calendar,
     }
 
 
-def build_ai_reply(message, company_id, site_name, business_type, offer, price, payment_link):
+# =========================================================
+# AI REPLY
+# =========================================================
+
+def build_ai_reply(
+    message,
+    company_id,
+    site_name,
+    business_type,
+    offer,
+    price,
+    payment_link,
+):
     api_key = os.getenv("GROQ_API_KEY")
 
     if not api_key:
@@ -606,15 +723,25 @@ Answer format:
     completion = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message}
+            {
+                "role": "system",
+                "content": system_prompt,
+            },
+            {
+                "role": "user",
+                "content": message,
+            },
         ],
         temperature=0.25,
-        max_tokens=220
+        max_tokens=220,
     )
 
     return completion.choices[0].message.content
 
+
+# =========================================================
+# META / FACEBOOK MESSENGER
+# =========================================================
 
 def send_meta_message(recipient_id, message_text):
     page_access_token = os.getenv("META_PAGE_ACCESS_TOKEN")
@@ -626,29 +753,30 @@ def send_meta_message(recipient_id, message_text):
     try:
         url = "https://graph.facebook.com/v19.0/me/messages"
 
-        payload = json.dumps({
-            "recipient": {
-                "id": recipient_id
-            },
-            "message": {
-                "text": message_text
+        payload = json.dumps(
+            {
+                "recipient": {
+                    "id": recipient_id,
+                },
+                "message": {
+                    "text": message_text,
+                },
             }
-        }).encode("utf-8")
+        ).encode("utf-8")
 
         req = urllib.request.Request(
             url + "?access_token=" + urllib.parse.quote(page_access_token),
             data=payload,
             headers={
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
-            method="POST"
+            method="POST",
         )
 
         with urllib.request.urlopen(req, timeout=20) as response:
             body = response.read().decode("utf-8")
             print("META SEND MESSAGE RESPONSE:", body)
-
-        return True
+            return True
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
@@ -658,182 +786,6 @@ def send_meta_message(recipient_id, message_text):
     except Exception as e:
         print("META SEND MESSAGE ERROR:", str(e))
         return False
-
-
-@app.get("/connect/google")
-def connect_google(companyId: str = "default_company"):
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-
-    if not client_id or not redirect_uri:
-        return HTMLResponse("""
-        <h2>Google OAuth is not configured</h2>
-        <p>Missing GOOGLE_CLIENT_ID or GOOGLE_REDIRECT_URI in Render Environment.</p>
-        """)
-
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/calendar.events",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/userinfo.profile",
-        "openid"
-    ]
-
-    params = {
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": " ".join(scopes),
-        "access_type": "offline",
-        "prompt": "consent",
-        "state": companyId
-    }
-
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-
-    return RedirectResponse(auth_url)
-
-
-@app.get("/google/callback")
-def google_callback(code: str = "", state: str = "default_company"):
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-
-    if not code:
-        return HTMLResponse("""
-        <h2>Google connection failed</h2>
-        <p>No authorization code received.</p>
-        """)
-
-    if not client_id or not client_secret or not redirect_uri:
-        return HTMLResponse("""
-        <h2>Google OAuth is not configured</h2>
-        <p>Missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_REDIRECT_URI.</p>
-        """)
-
-    try:
-        token_payload = urllib.parse.urlencode({
-            "code": code,
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "redirect_uri": redirect_uri,
-            "grant_type": "authorization_code"
-        }).encode("utf-8")
-
-        token_req = urllib.request.Request(
-            "https://oauth2.googleapis.com/token",
-            data=token_payload,
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            method="POST"
-        )
-
-        with urllib.request.urlopen(token_req, timeout=25) as token_response:
-            token_data = json.loads(token_response.read().decode("utf-8"))
-
-        access_token = token_data.get("access_token", "")
-        refresh_token = token_data.get("refresh_token", "")
-
-        user_email = ""
-        user_name = ""
-
-        if access_token:
-            user_req = urllib.request.Request(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={
-                    "Authorization": "Bearer " + access_token
-                },
-                method="GET"
-            )
-
-            with urllib.request.urlopen(user_req, timeout=25) as user_response:
-                user_data = json.loads(user_response.read().decode("utf-8"))
-                user_email = user_data.get("email", "")
-                user_name = user_data.get("name", "")
-
-        company_id = state or "default_company"
-
-        old_company = get_company(company_id)
-
-        old_refresh_token = ""
-        old_sheet_id = ""
-
-        if old_company:
-            old_refresh_token = old_company.get("refresh_token", "")
-            old_sheet_id = old_company.get("sheet_id", "")
-
-        if not refresh_token:
-            refresh_token = old_refresh_token
-
-        company = {
-            "company_id": company_id,
-            "google_connected": True,
-            "google_email": user_email,
-            "google_name": user_name,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "connected_at": datetime.utcnow().isoformat() + "Z",
-            "calendar_id": "primary",
-            "sheet_id": old_sheet_id,
-            "token_refreshed_at": ""
-        }
-
-        upsert_company(company)
-
-        return HTMLResponse(f"""
-        <html>
-          <body style="font-family: Arial; padding: 40px;">
-            <h1>✅ Google connected successfully</h1>
-            <p><b>Company ID:</b> {company_id}</p>
-            <p><b>Google account:</b> {user_email}</p>
-            <p>You can close this page.</p>
-          </body>
-        </html>
-        """)
-
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8")
-        print("GOOGLE OAUTH HTTP ERROR:", e.code, error_body)
-        return HTMLResponse(f"""
-        <h2>Google OAuth error</h2>
-        <pre>{error_body}</pre>
-        """)
-
-    except Exception as e:
-        print("GOOGLE OAUTH ERROR:", str(e))
-        return HTMLResponse(f"""
-        <h2>Google OAuth error</h2>
-        <pre>{str(e)}</pre>
-        """)
-
-
-@app.get("/company/status")
-def company_status(companyId: str = "default_company"):
-    company = get_company(companyId)
-
-    if not company:
-        return JSONResponse({
-            "companyId": companyId,
-            "google_connected": False
-        })
-
-    return JSONResponse({
-        "companyId": companyId,
-        "google_connected": company.get("google_connected", False),
-        "google_email": company.get("google_email", ""),
-        "google_name": company.get("google_name", ""),
-        "calendar_id": company.get("calendar_id", "primary"),
-        "sheet_id": company.get("sheet_id", ""),
-        "connected_at": company.get("connected_at", "")
-    })
-
-
-@app.get("/companies")
-def get_companies():
-    companies = get_all_companies_safe()
-    return JSONResponse({"companies": companies})
 
 
 @app.get("/meta/webhook")
@@ -872,7 +824,10 @@ async def receive_meta_webhook(request: Request):
                     company_id = "ai_sales_assistant_main"
                     site_name = "AI FLOW"
                     business_type = "AI sales automation service"
-                    offer = "AI assistant for Facebook, Instagram, WhatsApp, websites, Google Sheets, and Google Calendar"
+                    offer = (
+                        "AI assistant for Facebook, Instagram, WhatsApp, "
+                        "websites, Google Sheets, and Google Calendar"
+                    )
                     price = "$99/month + success fee"
                     payment_link = "https://buy.stripe.com/test_your_payment_link"
                     source = "meta messenger"
@@ -889,7 +844,7 @@ async def receive_meta_webhook(request: Request):
                             source=source,
                             language=language,
                             site_name=site_name,
-                            company_id=company_id
+                            company_id=company_id,
                         )
 
                     try:
@@ -900,8 +855,9 @@ async def receive_meta_webhook(request: Request):
                             business_type=business_type,
                             offer=offer,
                             price=price,
-                            payment_link=payment_link
+                            payment_link=payment_link,
                         )
+
                     except Exception as ai_error:
                         print("META AI REPLY ERROR:", str(ai_error))
                         reply_text = (
@@ -918,6 +874,211 @@ async def receive_meta_webhook(request: Request):
     return JSONResponse({"ok": True})
 
 
+# =========================================================
+# GOOGLE OAUTH
+# =========================================================
+
+@app.get("/connect/google")
+def connect_google(companyId: str = "default_company"):
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+
+    if not client_id or not redirect_uri:
+        return HTMLResponse(
+            """
+            <h1>Google OAuth is not configured</h1>
+            <p>Missing GOOGLE_CLIENT_ID or GOOGLE_REDIRECT_URI in Render Environment.</p>
+            """
+        )
+
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "openid",
+    ]
+
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": " ".join(scopes),
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": companyId,
+    }
+
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+
+    return RedirectResponse(auth_url)
+
+
+@app.get("/google/callback")
+def google_callback(code: str = "", state: str = "default_company"):
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+
+    if not code:
+        return HTMLResponse(
+            """
+            <h1>Google connection failed</h1>
+            <p>No authorization code received.</p>
+            """
+        )
+
+    if not client_id or not client_secret or not redirect_uri:
+        return HTMLResponse(
+            """
+            <h1>Google OAuth is not configured</h1>
+            <p>Missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_REDIRECT_URI.</p>
+            """
+        )
+
+    try:
+        token_payload = urllib.parse.urlencode(
+            {
+                "code": code,
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            }
+        ).encode("utf-8")
+
+        token_req = urllib.request.Request(
+            "https://oauth2.googleapis.com/token",
+            data=token_payload,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            method="POST",
+        )
+
+        with urllib.request.urlopen(token_req, timeout=25) as token_response:
+            token_data = json.loads(token_response.read().decode("utf-8"))
+
+        access_token = token_data.get("access_token", "")
+        refresh_token = token_data.get("refresh_token", "")
+
+        user_email = ""
+        user_name = ""
+
+        if access_token:
+            user_req = urllib.request.Request(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={
+                    "Authorization": "Bearer " + access_token,
+                },
+                method="GET",
+            )
+
+            with urllib.request.urlopen(user_req, timeout=25) as user_response:
+                user_data = json.loads(user_response.read().decode("utf-8"))
+
+            user_email = user_data.get("email", "")
+            user_name = user_data.get("name", "")
+
+        company_id = state or "default_company"
+
+        old_company = get_company(company_id)
+        old_refresh_token = ""
+        old_sheet_id = ""
+
+        if old_company:
+            old_refresh_token = old_company.get("refresh_token", "")
+            old_sheet_id = old_company.get("sheet_id", "")
+
+        if not refresh_token:
+            refresh_token = old_refresh_token
+
+        company = {
+            "company_id": company_id,
+            "google_connected": True,
+            "google_email": user_email,
+            "google_name": user_name,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "connected_at": datetime.utcnow().isoformat() + "Z",
+            "calendar_id": "primary",
+            "sheet_id": old_sheet_id,
+            "token_refreshed_at": "",
+        }
+
+        upsert_company(company)
+
+        return HTMLResponse(
+            f"""
+            <h1>✅ Google connected successfully</h1>
+            <p><strong>Company ID:</strong> {company_id}</p>
+            <p><strong>Google account:</strong> {user_email}</p>
+            <p>You can close this page.</p>
+            """
+        )
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print("GOOGLE OAUTH HTTP ERROR:", e.code, error_body)
+
+        return HTMLResponse(
+            f"""
+            <h1>Google OAuth error</h1>
+            <pre>{error_body}</pre>
+            """
+        )
+
+    except Exception as e:
+        print("GOOGLE OAUTH ERROR:", str(e))
+
+        return HTMLResponse(
+            f"""
+            <h1>Google OAuth error</h1>
+            <pre>{str(e)}</pre>
+            """
+        )
+
+
+@app.get("/company/status")
+def company_status(companyId: str = "default_company"):
+    company = get_company(companyId)
+
+    if not company:
+        return JSONResponse(
+            {
+                "companyId": companyId,
+                "google_connected": False,
+            }
+        )
+
+    return JSONResponse(
+        {
+            "companyId": companyId,
+            "google_connected": company.get("google_connected", False),
+            "google_email": company.get("google_email", ""),
+            "google_name": company.get("google_name", ""),
+            "calendar_id": company.get("calendar_id", "primary"),
+            "sheet_id": company.get("sheet_id", ""),
+            "connected_at": company.get("connected_at", ""),
+        }
+    )
+
+
+@app.get("/companies")
+def get_companies():
+    companies = get_all_companies_safe()
+
+    return JSONResponse(
+        {
+            "companies": companies,
+        }
+    )
+
+
+# =========================================================
+# WEBSITE CHAT
+# =========================================================
+
 @app.post("/chat")
 async def chat(request: Request):
     data = await request.json()
@@ -928,7 +1089,10 @@ async def chat(request: Request):
     business_type = data.get("businessType", "online business")
     offer = data.get("offer", "AI Sales Assistant")
     price = data.get("price", "$99/month")
-    payment_link = data.get("paymentLink", "https://buy.stripe.com/test_your_payment_link")
+    payment_link = data.get(
+        "paymentLink",
+        "https://buy.stripe.com/test_your_payment_link",
+    )
     source = data.get("source", "website widget")
 
     email = extract_email(message)
@@ -947,7 +1111,7 @@ async def chat(request: Request):
             source=source,
             language=language,
             site_name=site_name,
-            company_id=company_id
+            company_id=company_id,
         )
 
         lead_saved = True
@@ -962,19 +1126,28 @@ async def chat(request: Request):
             business_type=business_type,
             offer=offer,
             price=price,
-            payment_link=payment_link
+            payment_link=payment_link,
         )
 
-        return JSONResponse({
-            "reply": reply,
-            "lead_saved": lead_saved,
-            "saved_to_sheets": saved_to_sheets,
-            "saved_to_calendar": saved_to_calendar,
-            "companyId": company_id
-        })
+        return JSONResponse(
+            {
+                "reply": reply,
+                "lead_saved": lead_saved,
+                "saved_to_sheets": saved_to_sheets,
+                "saved_to_calendar": saved_to_calendar,
+                "companyId": company_id,
+            }
+        )
 
     except Exception as e:
         print("GROQ SDK ERROR:", str(e))
-        return JSONResponse({
-            "reply": "AI connection error. Please try again."
-        })
+
+        return JSONResponse(
+            {
+                "reply": "AI connection error. Please try again.",
+                "lead_saved": lead_saved,
+                "saved_to_sheets": saved_to_sheets,
+                "saved_to_calendar": saved_to_calendar,
+                "companyId": company_id,
+            }
+        )
