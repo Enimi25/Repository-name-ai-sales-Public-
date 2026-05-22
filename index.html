@@ -167,6 +167,22 @@
       transform: translateY(-2px);
     }
 
+    /* Pricing CTA visibility on light cards */
+    .pricing-grid .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .pricing-grid .btn-secondary {
+      border-color: rgba(7, 24, 32, 0.24);
+      color: #061923;
+    }
+
+    .pricing-grid .btn-secondary:hover {
+      background: rgba(6, 25, 35, 0.08);
+      border-color: rgba(6, 25, 35, 0.28);
+    }
+
     .btn-lime {
       background: #b8ff7a;
       color: #061923;
@@ -1339,7 +1355,7 @@
               <div><span class="check">✓</span> Books appointments in Google Calendar</div>
             </div>
 
-            <a class="btn btn-secondary" href="#demo">Start Website Bot</a>
+            <button class="btn btn-lime pricing-pay" type="button" data-plan="starter">Pay Starter ($39)</button>
           </div>
 
           <div class="price-card featured">
@@ -1362,7 +1378,7 @@
               <div><span class="check">✓</span> WhatsApp for verified businesses</div>
             </div>
 
-            <a class="btn btn-lime" href="#demo">Start Social AI →</a>
+            <button class="btn btn-lime pricing-pay" type="button" data-plan="pro">Pay Pro ($99) →</button>
           </div>
 
           <div class="price-card">
@@ -1383,7 +1399,7 @@
               <div><span class="check">✓</span> Custom integrations and setup</div>
             </div>
 
-            <a class="btn btn-secondary" href="#demo">Talk to Sales</a>
+            <button class="btn btn-secondary pricing-sales" type="button">Contact Sales</button>
           </div>
         </div>
 
@@ -1557,18 +1573,87 @@
         assistantWelcome.style.display = "grid";
       }
     }, 900);
+
+    async function startPricingCheckout(plan) {
+      if (plan !== "starter" && plan !== "pro") {
+        alert("Please choose Starter or Pro.");
+        return;
+      }
+
+      let popup = null;
+      try {
+        popup = window.open("about:blank", "_blank");
+      } catch (e) {
+        popup = null;
+      }
+
+      try {
+        const res = await fetch("/api/stripe/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: "default",
+            plan: plan,
+            projectName: "ai_sales_public_widget"
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || (data && data.error)) {
+          const msg = (data && (data.error || data.detail)) ? (data.error + (data.detail ? " (" + data.detail + ")" : "")) : "Payment error.";
+          alert(msg);
+          if (popup) {
+            try { popup.close(); } catch (e) {}
+          }
+          return;
+        }
+
+        if (data && data.url) {
+          if (popup && popup.location) {
+            popup.location.href = data.url;
+          } else {
+            window.location.href = data.url;
+          }
+          return;
+        }
+
+        alert("Payment error: missing checkout URL.");
+        if (popup) {
+          try { popup.close(); } catch (e) {}
+        }
+      } catch (e) {
+        alert("Connection error starting payment.");
+        if (popup) {
+          try { popup.close(); } catch (e) {}
+        }
+      }
+    }
+
+    document.querySelectorAll(".pricing-pay").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const plan = btn.getAttribute("data-plan") || "";
+        startPricingCheckout(plan);
+      });
+    });
+
+    document.querySelectorAll(".pricing-sales").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const to = "sales@ai-flow-platform.com";
+        const subject = encodeURIComponent("AI FLOW Enterprise");
+        const body = encodeURIComponent("Hi, I want Enterprise pricing. companyId: default");
+        window.location.href = "mailto:" + to + "?subject=" + subject + "&body=" + body;
+      });
+    });
   </script>
 
   <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
   <script>
     window.AISalesAssistantConfig = {
-      companyId: "ai_sales_assistant_main",
+      companyId: "default",
       siteName: "AI FLOW",
       businessType: "AI sales automation platform",
       offer: "AI sales agents for websites, Facebook Messenger, Instagram, WhatsApp, Google Sheets, and Google Calendar",
-      price: "From $39/month",
-      paymentLink: "https://buy.stripe.com/test_your_payment_link"
+      price: "From $39/month"
     };
   </script>
 

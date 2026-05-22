@@ -236,15 +236,16 @@
     .aiw-paybtn {
       flex: 1;
       min-width: 150px;
-      padding: 10px 12px;
+      padding: 12px 14px;
       border-radius: 999px;
       border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.045);
+      background: rgba(255, 255, 255, 0.06);
       color: white;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 900;
       transition: 0.18s ease;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
     }
 
     .aiw-paybtn:hover {
@@ -255,6 +256,7 @@
     .aiw-paybtn.primary {
       border: none;
       background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      box-shadow: 0 18px 55px rgba(124, 58, 237, 0.35);
     }
 
     #aiw-input-wrap {
@@ -411,6 +413,9 @@
   async function startCheckout(plan) {
     if (plan === "starter") {
       try { console.log("AI_WIDGET_STRIPE_STARTER_CLICK"); } catch (e) {}
+    }
+    if (plan === "pro") {
+      try { console.log("AI_WIDGET_STRIPE_PRO_CLICK"); } catch (e) {}
     }
 
     if (plan === "enterprise") {
