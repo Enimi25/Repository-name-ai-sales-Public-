@@ -967,7 +967,6 @@ Business context:
 - Business type: {business_type}
 - Offer: {offer}
 - Price starts from: {price}
-- Payment link: {payment_link}
 
 Your job:
 - Act like a confident sales assistant.
@@ -987,7 +986,7 @@ Sales rules:
 - If user asks about price, say that price starts from {price}.
 - If user wants to book, ask for email or phone.
 - If user sends email or phone, confirm that the request was received and say that the team will contact them soon.
-- If user wants to pay, send this payment link: {payment_link}.
+- If user wants to pay, tell them to click the Pay Starter ($39) or Pay Pro ($99) buttons in the chat widget.
 - If user asks about Instagram, Facebook, Messenger, WhatsApp, or social media, answer that AI FLOW helps connect website, Facebook, Instagram, and WhatsApp messages into one AI sales assistant.
 - If user says they want to book tomorrow or at a certain time, ask for phone/email if they did not provide it.
 - If user already provided phone/email, confirm that the request was received and that the team will contact them soon.
@@ -1110,7 +1109,7 @@ async def receive_meta_webhook(request: Request):
                         "websites, Google Sheets, and Google Calendar"
                     )
                     price = "$99/month + success fee"
-                    payment_link = "https://buy.stripe.com/test_your_payment_link"
+                    payment_link = ""
                     source = "meta messenger"
 
                     email = extract_email(user_message)
@@ -1370,10 +1369,8 @@ async def chat(request: Request):
     business_type = data.get("businessType", "online business")
     offer = data.get("offer", "AI Sales Assistant")
     price = data.get("price", "$99/month")
-    payment_link = data.get(
-        "paymentLink",
-        "https://buy.stripe.com/test_your_payment_link",
-    )
+    # Stripe checkout is handled via /api/stripe/create-checkout-session; do not use placeholder payment links.
+    payment_link = data.get("paymentLink", "") or ""
     source = data.get("source", "website widget")
 
     email = extract_email(message)

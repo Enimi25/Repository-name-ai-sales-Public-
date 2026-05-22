@@ -18,7 +18,7 @@
         if (v) return String(v);
       }
     } catch (e) {}
-    return "ai_sales_assistant_main";
+    return "default";
   }
 
   const companyId = detectCompanyId();
@@ -26,7 +26,8 @@
   const businessType = config.businessType || "online business";
   const offer = config.offer || "AI Sales Assistant";
   const price = config.price || "$99/month";
-  const paymentLink = config.paymentLink || "";
+  // Stripe checkout is handled via backend session creation; do not use placeholder payment links.
+  const paymentLink = "";
 
   const baseUrl = (function () {
     try {
@@ -203,7 +204,7 @@
     }
 
     #aiw-pay {
-      display: none;
+      display: flex;
       gap: 10px;
       padding: 12px;
       border-top: 1px solid rgba(255, 255, 255, 0.07);
@@ -439,13 +440,18 @@
       return;
     }
 
+    // Local payment UX: don't call the chat backend for a plain "pay" intent.
+    if (cleanText.toLowerCase() === "pay") {
+      addMessage(cleanText, "user");
+      togglePayPanel(true);
+      addMessage("Choose a plan to pay:", "bot");
+      return;
+    }
+
     isSending = true;
     sendBtn.disabled = true;
 
     addMessage(cleanText, "user");
-    if (cleanText.toLowerCase() === "pay") {
-      togglePayPanel(true);
-    }
 
     try {
       const res = await fetch(API, {
