@@ -29,15 +29,36 @@
   // Stripe checkout is handled via backend session creation; do not use placeholder payment links.
   const paymentLink = "";
 
-  const baseUrl = (function () {
+  function detectBaseUrl() {
     try {
       const u = String(config.baseUrl || "").trim();
       if (u) return u.replace(/\/+$/, "");
-      return String(API || "").replace(/\/chat\/?$/, "");
-    } catch (e) {
-      return "";
-    }
-  })();
+
+      // Prefer widget script origin so embedded widgets always call the correct backend.
+      var scriptSrc = "";
+      if (document.currentScript && document.currentScript.src) {
+        scriptSrc = String(document.currentScript.src);
+      } else {
+        const scripts = document.querySelectorAll('script[src*="widget.js"]');
+        if (scripts && scripts.length) {
+          scriptSrc = String(scripts[scripts.length - 1].src || "");
+        }
+      }
+      if (scriptSrc && /^https?:\/\//i.test(scriptSrc)) {
+        const url = new URL(scriptSrc);
+        return url.origin;
+      }
+
+      // Fallback: derive from API if it's absolute.
+      const api = String(API || "").trim();
+      if (/^https?:\/\//i.test(api)) {
+        return api.replace(/\/chat\/?$/, "");
+      }
+    } catch (e) {}
+    return "";
+  }
+
+  const baseUrl = detectBaseUrl();
 
   let isOpen = false;
   let isSending = false;
