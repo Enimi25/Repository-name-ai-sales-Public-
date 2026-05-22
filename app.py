@@ -547,7 +547,13 @@ def home():
 
 @app.get("/widget.js")
 def widget():
-    return FileResponse("widget.js", media_type="application/javascript")
+    # Prevent stale widget.js caching on client sites.
+    resp = FileResponse("widget.js", media_type="application/javascript")
+    resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    resp.headers["Surrogate-Control"] = "no-store"
+    return resp
 
 @app.get("/payment/success")
 def payment_success_page():

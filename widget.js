@@ -388,6 +388,10 @@
   }
 
   async function startCheckout(plan) {
+    if (plan === "starter") {
+      try { console.log("AI_WIDGET_STRIPE_STARTER_CLICK"); } catch (e) {}
+    }
+
     if (plan === "enterprise") {
       addMessage("For Enterprise pricing, contact sales.", "bot");
       const to = "sales@ai-flow-platform.com";
@@ -404,7 +408,15 @@
       return;
     }
 
-    addMessage("Opening Stripe Checkout...", "system");
+    addMessage("Opening secure Stripe checkout...", "system");
+
+    // Create a popup synchronously to avoid popup blockers on async redirect.
+    let popup = null;
+    try {
+      popup = window.open("about:blank", "_blank");
+    } catch (e) {
+      popup = null;
+    }
 
     try {
       const res = await fetch(baseUrl + "/api/stripe/create-checkout-session", {
@@ -418,18 +430,31 @@
           ? (data.error + (data.detail ? " (" + data.detail + ")" : ""))
           : "Payment error.";
         addMessage(msg, "system");
+        if (popup && popup.location) {
+          try { popup.close(); } catch (e) {}
+        }
         return;
       }
 
       if (data && data.url) {
-        window.open(data.url, "_blank");
-        addMessage("Stripe Checkout opened in a new tab.", "bot");
+        if (popup && popup.location) {
+          popup.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
+        addMessage("Stripe Checkout opened.", "bot");
         return;
       }
 
       addMessage("Payment error: missing checkout URL.", "system");
+      if (popup && popup.location) {
+        try { popup.close(); } catch (e) {}
+      }
     } catch (e) {
       addMessage("Server error. Please try again.", "system");
+      if (popup && popup.location) {
+        try { popup.close(); } catch (e) {}
+      }
     }
   }
 
