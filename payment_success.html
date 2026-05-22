@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Success</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:28px;
+      background:#061923;
+      color:#f7fbff;
+      font-family:Inter,Arial,sans-serif;
+      line-height:1.6;
+    }
+    .card{
+      width:100%;
+      max-width:720px;
+      background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:24px;
+      padding:22px;
+      box-shadow:0 30px 80px rgba(0,0,0,.16);
+    }
+    h1{font-size:28px;font-weight:900;margin-bottom:10px}
+    p{color:rgba(247,251,255,0.75);margin-bottom:16px}
+    .note{
+      background:rgba(255,255,255,0.04);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:16px;
+      padding:14px;
+    }
+    a{
+      display:inline-block;
+      margin-top:18px;
+      padding:12px 14px;
+      border-radius:12px;
+      font-weight:900;
+      text-decoration:none;
+      color:#071820;
+      background:linear-gradient(135deg, rgba(184,255,122,0.98) 0%, rgba(65,220,255,0.72) 100%);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Payment received</h1>
+    <p>Thanks. Your payment is being verified. Access is activated only after Stripe confirms the payment via webhook.</p>
+    <div class="note" id="statusBox">Status: processing</div>
+    <a href="/">Back to site</a>
+  </div>
+  <script>
+  (function(){
+    const p = new URLSearchParams(window.location.search || "");
+    const sid = p.get("session_id") || "";
+    const el = document.getElementById("statusBox");
+    if(!el) return;
+    if(!sid) return;
+    el.innerText = "Status: processing (Session: " + sid.slice(0, 12) + "...)";
+  })();
+  </script>
+</body>
+</html>
+

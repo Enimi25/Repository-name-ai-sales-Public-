@@ -5,12 +5,38 @@
 
   const API = config.apiUrl || DEFAULT_API;
 
-  const companyId = config.companyId || "ai_sales_assistant_main";
+  function detectCompanyId() {
+    try {
+      if (config.companyId) return String(config.companyId);
+      if (document.currentScript) {
+        const v = document.currentScript.getAttribute("data-company-id");
+        if (v) return String(v);
+      }
+      const scripts = document.querySelectorAll('script[src*="widget.js"]');
+      for (let i = scripts.length - 1; i >= 0; i--) {
+        const v = scripts[i].getAttribute("data-company-id");
+        if (v) return String(v);
+      }
+    } catch (e) {}
+    return "ai_sales_assistant_main";
+  }
+
+  const companyId = detectCompanyId();
   const siteName = config.siteName || document.title || "this business";
   const businessType = config.businessType || "online business";
   const offer = config.offer || "AI Sales Assistant";
   const price = config.price || "$99/month";
-  const paymentLink = config.paymentLink || "https://buy.stripe.com/test_your_payment_link";
+  const paymentLink = config.paymentLink || "";
+
+  const baseUrl = (function () {
+    try {
+      const u = String(config.baseUrl || "").trim();
+      if (u) return u.replace(/\/+$/, "");
+      return String(API || "").replace(/\/chat\/?$/, "");
+    } catch (e) {
+      return "";
+    }
+  })();
 
   let isOpen = false;
   let isSending = false;
@@ -176,6 +202,39 @@
       border-color: rgba(124, 58, 237, 0.45);
     }
 
+    #aiw-pay {
+      display: none;
+      gap: 10px;
+      padding: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+      background: #08080d;
+      flex-wrap: wrap;
+    }
+
+    .aiw-paybtn {
+      flex: 1;
+      min-width: 150px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      color: white;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      transition: 0.18s ease;
+    }
+
+    .aiw-paybtn:hover {
+      background: rgba(124, 58, 237, 0.18);
+      border-color: rgba(124, 58, 237, 0.45);
+    }
+
+    .aiw-paybtn.primary {
+      border: none;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    }
+
     #aiw-input-wrap {
       display: flex;
       gap: 10px;
@@ -257,7 +316,13 @@
     <div id="aiw-quick">
       <button class="aiw-qbtn" type="button" data-text="Price">Price</button>
       <button class="aiw-qbtn" type="button" data-text="Book">Book</button>
-      <button class="aiw-qbtn" type="button" data-text="Pay">Pay</button>
+      <button class="aiw-qbtn" type="button" data-action="pay">Pay</button>
+    </div>
+
+    <div id="aiw-pay">
+      <button class="aiw-paybtn primary" type="button" data-plan="starter">Pay Starter ($39)</button>
+      <button class="aiw-paybtn primary" type="button" data-plan="pro">Pay Pro ($99)</button>
+      <button class="aiw-paybtn" type="button" data-plan="enterprise">Contact Sales</button>
     </div>
 
     <div id="aiw-input-wrap">
@@ -273,6 +338,7 @@
   const input = box.querySelector("#aiw-input");
   const sendBtn = box.querySelector("#aiw-send");
   const closeBtn = box.querySelector("#aiw-close");
+  const payPanel = box.querySelector("#aiw-pay");
 
   function openWidget() {
     isOpen = true;
@@ -307,6 +373,65 @@
     return String(value || "").trim();
   }
 
+  function togglePayPanel(force) {
+    if (!payPanel) return;
+    if (force === true) {
+      payPanel.style.display = "flex";
+      return;
+    }
+    if (force === false) {
+      payPanel.style.display = "none";
+      return;
+    }
+    payPanel.style.display = (payPanel.style.display === "flex") ? "none" : "flex";
+  }
+
+  async function startCheckout(plan) {
+    if (plan === "enterprise") {
+      addMessage("For Enterprise pricing, contact sales.", "bot");
+      const to = "sales@ai-flow-platform.com";
+      const subject = encodeURIComponent("AI Sales Assistant Enterprise");
+      const body = encodeURIComponent("Hi, I want Enterprise pricing. companyId: " + companyId);
+      try {
+        window.open("mailto:" + to + "?subject=" + subject + "&body=" + body, "_blank");
+      } catch (e) {}
+      return;
+    }
+
+    if (!baseUrl) {
+      addMessage("Payment is not available right now.", "system");
+      return;
+    }
+
+    addMessage("Opening Stripe Checkout...", "system");
+
+    try {
+      const res = await fetch(baseUrl + "/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: companyId, plan: plan, projectName: "ai_sales_public_widget" })
+      });
+      const data = await res.json();
+      if (!res.ok || (data && data.error)) {
+        const msg = (data && (data.error || data.detail))
+          ? (data.error + (data.detail ? " (" + data.detail + ")" : ""))
+          : "Payment error.";
+        addMessage(msg, "system");
+        return;
+      }
+
+      if (data && data.url) {
+        window.open(data.url, "_blank");
+        addMessage("Stripe Checkout opened in a new tab.", "bot");
+        return;
+      }
+
+      addMessage("Payment error: missing checkout URL.", "system");
+    } catch (e) {
+      addMessage("Server error. Please try again.", "system");
+    }
+  }
+
   async function sendMessage(text) {
     const cleanText = getCleanText(text);
 
@@ -318,6 +443,9 @@
     sendBtn.disabled = true;
 
     addMessage(cleanText, "user");
+    if (cleanText.toLowerCase() === "pay") {
+      togglePayPanel(true);
+    }
 
     try {
       const res = await fetch(API, {
@@ -372,8 +500,21 @@
 
   box.querySelectorAll(".aiw-qbtn").forEach(function (quickBtn) {
     quickBtn.addEventListener("click", function () {
+      const action = quickBtn.getAttribute("data-action") || "";
+      if (action === "pay") {
+        togglePayPanel();
+        addMessage("Choose a plan to pay:", "bot");
+        return;
+      }
       const text = quickBtn.getAttribute("data-text");
       sendMessage(text);
+    });
+  });
+
+  box.querySelectorAll(".aiw-paybtn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      const plan = b.getAttribute("data-plan") || "";
+      startCheckout(plan);
     });
   });
 

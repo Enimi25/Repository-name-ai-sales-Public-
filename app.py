@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import stripe
 
 
 app = FastAPI()
@@ -76,6 +77,34 @@ def init_db():
                     connected_at TEXT DEFAULT '',
                     token_refreshed_at TEXT DEFAULT ''
                 );
+                """
+            )
+
+            # Backward-compatible billing fields.
+            cur.execute("ALTER TABLE companies ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid'")
+
+            # Stripe payment records (MVP).
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS v2_payments (
+                    id SERIAL PRIMARY KEY,
+                    company_id TEXT DEFAULT '',
+                    project_name TEXT DEFAULT '',
+                    stripe_session_id TEXT DEFAULT '',
+                    customer_email TEXT DEFAULT '',
+                    amount INTEGER DEFAULT 0,
+                    currency TEXT DEFAULT '',
+                    status TEXT DEFAULT '',
+                    plan TEXT DEFAULT '',
+                    created_at TEXT DEFAULT ''
+                );
+                """
+            )
+
+            cur.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_v2_payments_session
+                ON v2_payments (stripe_session_id);
                 """
             )
 
@@ -263,6 +292,249 @@ def get_all_companies_safe():
     finally:
         conn.close()
 
+def _iso_z(dt: datetime):
+    return dt.isoformat() + "Z"
+
+
+def _stripe_config():
+    secret_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+    webhook_secret = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+    price_starter = (os.getenv("STRIPE_PRICE_STARTER") or "").strip()
+    price_pro = (os.getenv("STRIPE_PRICE_PRO") or "").strip()
+    public_url = (os.getenv("APP_PUBLIC_URL") or "").strip().rstrip("/")
+    return secret_key, webhook_secret, price_starter, price_pro, public_url
+
+
+def _stripe_safe_error_info(err: Exception):
+    try:
+        code = getattr(err, "code", None)
+        param = getattr(err, "param", None)
+        user_message = getattr(err, "user_message", None)
+        return {
+            "type": type(err).__name__,
+            "code": str(code) if code else "",
+            "param": str(param) if param else "",
+            "user_message": str(user_message) if user_message else "",
+        }
+    except Exception:
+        return {"type": type(err).__name__, "code": "", "param": "", "user_message": ""}
+
+
+def _ensure_company_row(company_id: str):
+    cid = (company_id or "").strip()
+    if not cid:
+        return False
+    company = get_company(cid)
+    if company:
+        return True
+    # Create minimal company row so payments can be tracked.
+    return upsert_company({"company_id": cid})
+
+
+# =========================================================
+# STRIPE PAYMENTS (MVP)
+# =========================================================
+
+@app.post("/api/stripe/create-checkout-session")
+async def stripe_create_checkout_session(request: Request):
+    data = await request.json()
+
+    company_id = (data.get("companyId") or "").strip()
+    plan = (data.get("plan") or "").strip().lower()
+    project_name = (data.get("projectName") or "ai_sales_public_widget").strip() or "ai_sales_public_widget"
+
+    if not company_id:
+        return JSONResponse({"error": "Missing companyId"}, status_code=400)
+
+    # Basic companyId validation (avoid weird payloads).
+    if len(company_id) > 120:
+        return JSONResponse({"error": "Invalid companyId"}, status_code=400)
+
+    if plan not in ("starter", "pro"):
+        return JSONResponse({"error": "Invalid plan. Use starter or pro."}, status_code=400)
+
+    secret_key, webhook_secret, price_starter, price_pro, public_url = _stripe_config()
+    if not secret_key or not webhook_secret or not public_url:
+        return JSONResponse(
+            {
+                "error": "Stripe is not configured",
+                "detail": "Missing STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / STRIPE_PRICE_STARTER / STRIPE_PRICE_PRO / APP_PUBLIC_URL",
+            },
+            status_code=500,
+        )
+
+    if not (secret_key.startswith("sk_test_") or secret_key.startswith("sk_live_")):
+        return JSONResponse({"error": "Stripe is not configured", "detail": "Invalid STRIPE_SECRET_KEY"}, status_code=400)
+    if not public_url.startswith("https://"):
+        return JSONResponse({"error": "Stripe is not configured", "detail": "APP_PUBLIC_URL must start with https://"}, status_code=400)
+
+    price_id = price_starter if plan == "starter" else price_pro
+    if not price_id:
+        return JSONResponse({"error": "Stripe is not configured", "detail": f"Missing Stripe price id for {plan}"}, status_code=500)
+    if not price_id.startswith("price_"):
+        return JSONResponse({"error": "Stripe is not configured", "detail": f"Invalid Stripe price id for {plan}"}, status_code=400)
+
+    if not _ensure_company_row(company_id):
+        return JSONResponse({"error": "Company validation error"}, status_code=500)
+
+    stripe.api_key = secret_key
+
+    success_url = f"{public_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{public_url}/payment/cancel"
+    now = _iso_z(datetime.utcnow())
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={"company_id": company_id, "project_name": project_name, "plan": plan},
+        )
+    except stripe.error.StripeError as e:
+        info = _stripe_safe_error_info(e)
+        print("STRIPE CREATE SESSION ERROR:", json.dumps(info, ensure_ascii=True))
+        msg = info.get("user_message") or "Stripe checkout error. Please verify your Price IDs and Stripe keys."
+        return JSONResponse({"error": msg, "code": info.get("code") or "", "param": info.get("param") or ""}, status_code=400)
+    except Exception as e:
+        print("STRIPE CREATE SESSION ERROR:", type(e).__name__)
+        return JSONResponse({"error": "Stripe session create error"}, status_code=500)
+
+    session_id = ""
+    try:
+        session_id = getattr(session, "id", "") or ""
+    except Exception:
+        session_id = ""
+    if not session_id:
+        try:
+            session_id = session["id"]
+        except Exception:
+            session_id = ""
+
+    checkout_url = ""
+    try:
+        checkout_url = getattr(session, "url", "") or ""
+    except Exception:
+        checkout_url = ""
+    if not checkout_url:
+        try:
+            checkout_url = session["url"]
+        except Exception:
+            checkout_url = ""
+
+    if not checkout_url:
+        return JSONResponse({"error": "Stripe session created but no checkout URL was returned."}, status_code=500)
+
+    # Record session
+    conn = get_db_connection()
+    if not conn:
+        return JSONResponse({"error": "Database error"}, status_code=500)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO v2_payments (company_id, project_name, stripe_session_id, customer_email, amount, currency, status, plan, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (stripe_session_id)
+                DO NOTHING
+                """,
+                (company_id, project_name, session_id, "", 0, "", "created", plan, now),
+            )
+        conn.commit()
+    except Exception as e:
+        print("STRIPE SAVE SESSION ERROR:", type(e).__name__)
+    finally:
+        conn.close()
+
+    return JSONResponse({"success": True, "url": checkout_url})
+
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    secret_key, webhook_secret, price_starter, price_pro, public_url = _stripe_config()
+    if not secret_key or not webhook_secret:
+        return JSONResponse({"error": "Stripe is not configured"}, status_code=500)
+    if not (secret_key.startswith("sk_test_") or secret_key.startswith("sk_live_")):
+        return JSONResponse({"error": "Stripe is not configured"}, status_code=500)
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature") or ""
+
+    stripe.api_key = secret_key
+
+    try:
+        event = stripe.Webhook.construct_event(payload=payload, sig_header=sig_header, secret=webhook_secret)
+    except stripe.error.StripeError as e:
+        info = _stripe_safe_error_info(e)
+        print("STRIPE WEBHOOK SIGNATURE ERROR:", json.dumps(info, ensure_ascii=True))
+        return JSONResponse({"error": "Invalid signature"}, status_code=400)
+    except Exception as e:
+        print("STRIPE WEBHOOK SIGNATURE ERROR:", type(e).__name__)
+        return JSONResponse({"error": "Invalid signature"}, status_code=400)
+
+    event_type = (event.get("type") or "").strip()
+    obj = (event.get("data") or {}).get("object") or {}
+
+    if event_type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
+        session_id = (obj.get("id") or "").strip()
+        payment_status = (obj.get("payment_status") or "").strip()
+        currency = (obj.get("currency") or "").strip()
+        amount_total = obj.get("amount_total")
+        customer_email = (obj.get("customer_details") or {}).get("email") or (obj.get("customer_email") or "")
+
+        metadata = obj.get("metadata") or {}
+        company_id = (metadata.get("company_id") or "").strip()
+        project_name = (metadata.get("project_name") or "").strip()
+        plan = (metadata.get("plan") or "").strip()
+
+        status = "paid" if payment_status == "paid" else "completed"
+        now = _iso_z(datetime.utcnow())
+
+        conn = get_db_connection()
+        if not conn:
+            return JSONResponse({"error": "Database error"}, status_code=500)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO v2_payments (company_id, project_name, stripe_session_id, customer_email, amount, currency, status, plan, created_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (stripe_session_id)
+                    DO UPDATE SET
+                        customer_email = EXCLUDED.customer_email,
+                        amount = EXCLUDED.amount,
+                        currency = EXCLUDED.currency,
+                        status = EXCLUDED.status,
+                        plan = EXCLUDED.plan
+                    """,
+                    (
+                        company_id,
+                        project_name,
+                        session_id,
+                        str(customer_email or "")[:200],
+                        int(amount_total or 0),
+                        str(currency or "")[:12],
+                        status,
+                        str(plan or "")[:30],
+                        now,
+                    ),
+                )
+
+                if company_id and status == "paid":
+                    cur.execute(
+                        "UPDATE companies SET payment_status = %s WHERE company_id = %s",
+                        ("paid", company_id),
+                    )
+
+            conn.commit()
+        except Exception as e:
+            print("STRIPE WEBHOOK DB ERROR:", type(e).__name__)
+            return JSONResponse({"error": "Webhook DB error"}, status_code=500)
+        finally:
+            conn.close()
+
+    return JSONResponse({"received": True})
+
 
 # =========================================================
 # STATIC PAGES
@@ -276,6 +548,15 @@ def home():
 @app.get("/widget.js")
 def widget():
     return FileResponse("widget.js", media_type="application/javascript")
+
+@app.get("/payment/success")
+def payment_success_page():
+    return FileResponse("payment_success.html")
+
+
+@app.get("/payment/cancel")
+def payment_cancel_page():
+    return FileResponse("payment_cancel.html")
 
 
 @app.get("/privacy.html", response_class=HTMLResponse)
