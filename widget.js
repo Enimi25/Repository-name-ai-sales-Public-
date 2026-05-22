@@ -225,7 +225,7 @@
     }
 
     #aiw-pay {
-      display: flex;
+      display: none;
       gap: 10px;
       padding: 12px;
       border-top: 1px solid rgba(255, 255, 255, 0.07);
@@ -338,7 +338,6 @@
     <div id="aiw-messages"></div>
 
     <div id="aiw-quick">
-      <button class="aiw-qbtn" type="button" data-text="Price">Price</button>
       <button class="aiw-qbtn" type="button" data-text="Book">Book</button>
       <button class="aiw-qbtn" type="button" data-action="pay">Pay</button>
     </div>
@@ -488,14 +487,6 @@
     const cleanText = getCleanText(text);
 
     if (!cleanText || isSending) {
-      return;
-    }
-
-    // Local payment UX: don't call the chat backend for a plain "pay" intent.
-    if (cleanText.toLowerCase() === "pay") {
-      addMessage(cleanText, "user");
-      togglePayPanel(true);
-      addMessage("Choose a plan to pay:", "bot");
       return;
     }
 
